@@ -1,0 +1,3 @@
+# .cargo/config.toml
+[build]
+rustflags = ["-Zhigher-ranked-assumptions"]

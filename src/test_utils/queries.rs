@@ -1,0 +1,75 @@
+use uuid::Uuid;
+
+use crate::RawEvent;
+
+pub async fn get_event_failed(
+    pool: &sqlx::PgPool,
+    id: Uuid,
+) -> Result<RawEvent, sqlx::Error> {
+    let event = sqlx::query_as!(
+        RawEvent,
+        r#"
+            SELECT
+                id,
+                name,
+                hash,
+                payload
+            FROM
+                fx_event_bus.events_failed
+            WHERE
+                id = $1
+        "#,
+        id,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(event)
+}
+
+pub async fn get_event_acknowledged(
+    pool: &sqlx::PgPool,
+    id: Uuid,
+) -> Result<RawEvent, sqlx::Error> {
+    let event = sqlx::query_as!(
+        RawEvent,
+        r#"
+            SELECT
+                id,
+                name,
+                hash,
+                payload
+            FROM
+                fx_event_bus.events_acknowledged
+            WHERE
+                id = $1
+        "#,
+        id,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(event)
+}
+
+pub async fn get_event_unacknowledged(
+    pool: &sqlx::PgPool,
+    id: Uuid,
+) -> Result<RawEvent, sqlx::Error> {
+    let event = sqlx::query_as!(
+        RawEvent,
+        r#"
+            SELECT
+                id,
+                name,
+                hash,
+                payload
+            FROM
+                fx_event_bus.events_unacknowledged
+            WHERE
+                id = $1
+        "#,
+        id,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(event)
+}

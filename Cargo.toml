@@ -1,0 +1,24 @@
+[package]
+name = "fx-event-bus"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+sqlx = { workspace = true, features = ["migrate"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+const-fnv1a-hash = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing-subscriber = { workspace = true }
