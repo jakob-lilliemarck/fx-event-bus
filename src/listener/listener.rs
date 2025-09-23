@@ -1,5 +1,5 @@
 use crate::{
-    EventHandlerRegistry, FromOther, RawEvent,
+    EventHandlerRegistry, RawEvent,
     models::{EventResult, EventStatus},
 };
 use chrono::Utc;
@@ -12,13 +12,13 @@ const EVENTS_CHANNEL: &str = "fx_event_bus";
 
 pub struct Listener {
     pool: PgPool,
-    registry: EventHandlerRegistry,
+    registry: EventHandlerRegistry<'static>,
 }
 
 impl Listener {
     pub fn new(
         pool: PgPool,
-        registry: EventHandlerRegistry,
+        registry: EventHandlerRegistry<'static>,
     ) -> Self {
         Listener { pool, registry }
     }
@@ -56,7 +56,7 @@ impl Listener {
         Ok(())
     }
 
-    async fn poll(&mut self) -> Result<(), super::ListenerError> {
+    async fn poll(&'static mut self) -> Result<(), super::ListenerError> {
         // begin a transaction
         let mut tx = self.pool.begin().await?;
         // use the transaction to call acknowledge
@@ -65,12 +65,8 @@ impl Listener {
             Some(event) => {
                 // keep the event id for later use
                 let id = event.id;
-                // it to create a transaction registry
-                let mut tx_registry = self.registry.from(tx);
                 // use the transaction registry to handle the event
-                let result = tx_registry.handle(event).await;
-                // destroy the registry and get the transaction
-                let mut tx: PgTransaction<'_> = tx_registry.into();
+                let (mut tx, result) = self.registry.handle_tx(event, tx).await;
 
                 if let Err(error) = result {
                     // if the handling failed, fail the event

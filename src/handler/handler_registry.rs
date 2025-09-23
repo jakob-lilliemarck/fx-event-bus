@@ -1,5 +1,5 @@
 use super::{EventHandlingError, HandlerGroup};
-use crate::{chainable::FromOther, models::RawEvent};
+use crate::models::RawEvent;
 use sqlx::PgTransaction;
 use std::collections::HashMap;
 
@@ -15,12 +15,12 @@ pub enum EventRegistryError {
     },
 }
 
-pub struct EventHandlerRegistry {
-    handlers: HashMap<i32, Box<dyn HandlerGroup + Send + Sync>>,
+pub struct EventHandlerRegistry<'a> {
+    handlers: HashMap<i32, Box<dyn HandlerGroup<'a> + Send + Sync>>,
 }
 
-impl EventHandlerRegistry {
-    pub fn new() -> EventHandlerRegistry {
+impl<'a> EventHandlerRegistry<'a> {
+    pub fn new() -> EventHandlerRegistry<'a> {
         Self {
             handlers: HashMap::new(),
         }
@@ -31,7 +31,7 @@ impl EventHandlerRegistry {
         group: H,
     ) -> Result<Self, EventRegistryError>
     where
-        H: HandlerGroup + Send + Sync + 'static,
+        H: HandlerGroup<'a> + Send + Sync + 'static,
     {
         // Check for hash collision
         self.check_for_collision::<H>(&group)?;
@@ -42,7 +42,7 @@ impl EventHandlerRegistry {
         Ok(self)
     }
 
-    fn check_for_collision<H: HandlerGroup>(
+    fn check_for_collision<H: HandlerGroup<'a>>(
         &self,
         handler: &H,
     ) -> Result<(), EventRegistryError> {
@@ -75,61 +75,19 @@ impl EventHandlerRegistry {
             ))),
         }
     }
-}
 
-pub struct TxEventHandlerRegistry<'tx> {
-    handlers: &'tx HashMap<i32, Box<dyn HandlerGroup + Send + Sync>>,
-    /// Can hold a transaction for handling events.
-    tx: Option<PgTransaction<'tx>>,
-}
-
-impl<'tx> Into<PgTransaction<'tx>> for TxEventHandlerRegistry<'tx> {
-    fn into(mut self) -> PgTransaction<'tx> {
-        if let Some(tx) = self.tx.take() {
-            tx
-        } else {
-            // FIXME!
-            // I do not think this could logically ever happen? But consider using a generic to cofirm saftey through the typesystem?
-            panic!(
-                "PgTransaction could not be retrieved from TxEventHandlerRegistry"
-            );
-        }
-    }
-}
-
-impl<'tx> FromOther<'tx> for EventHandlerRegistry {
-    type TxType = TxEventHandlerRegistry<'tx>;
-
-    fn from(
-        &'tx self,
-        other: impl Into<PgTransaction<'tx>>,
-    ) -> Self::TxType {
-        TxEventHandlerRegistry {
-            handlers: &self.handlers,
-            tx: Some(other.into()),
-        }
-    }
-}
-
-impl<'tx> TxEventHandlerRegistry<'tx> {
-    pub async fn handle(
-        &mut self,
+    pub async fn handle_tx<'tx>(
+        &'a self,
         event: RawEvent,
-    ) -> Result<(), EventHandlingError> {
+        tx: PgTransaction<'tx>,
+    ) -> (sqlx::PgTransaction<'tx>, Result<(), EventHandlingError>)
+    where
+        'a: 'tx,
+        'tx: 'a,
+    {
         match self.handlers.get(&event.hash) {
-            Some(group) => {
-                if let Some(tx) = self.tx.take() {
-                    let (tx, result) = group.handle_tx(event, tx).await;
-                    self.tx = Some(tx);
-                    result
-                } else {
-                    panic!("This should never happen")
-                }
-            }
-            None => Err(EventHandlingError::BusinessLogicError(format!(
-                "No handler group registered for event hash {}",
-                event.hash
-            ))),
+            Some(group) => group.handle_tx(event, tx).await,
+            None => (tx, Ok(())),
         }
     }
 }
