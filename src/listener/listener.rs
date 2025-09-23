@@ -1,7 +1,11 @@
-use crate::{EventHandlerRegistry, FromOther, RawEvent};
+use crate::{
+    EventHandlerRegistry, FromOther, RawEvent,
+    models::{EventResult, EventStatus},
+};
 use chrono::Utc;
 use futures::StreamExt;
 use sqlx::{PgPool, PgTransaction, postgres::PgListener};
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 const EVENTS_CHANNEL: &str = "fx_event_bus";
@@ -21,14 +25,28 @@ impl Listener {
 
     // Uses PgNotify to listen for events and calls the provided callback
     // The callback is called for each notification received
-    pub async fn listen(&mut self) -> Result<(), super::ListenerError> {
+    pub async fn listen(
+        &mut self,
+        tx: Option<mpsc::Sender<()>>,
+    ) -> Result<(), super::ListenerError> {
         let mut listener = PgListener::connect_with(&self.pool).await?;
         listener.listen(EVENTS_CHANNEL).await?;
 
         let mut stream = listener.into_stream();
         while let Some(notification_result) = stream.next().await {
             match notification_result {
-                Ok(_) => self.poll().await?,
+                Ok(_) => {
+                    self.poll().await?;
+                    // If a channel is provided, send a message to it
+                    if let Some(tx) = &tx {
+                        if let Err(err) = tx.send(()).await {
+                            tracing::error!(
+                                "Failed to send event to listener: {}",
+                                err
+                            );
+                        }
+                    }
+                }
                 Err(e) => {
                     return Err(super::ListenerError::DatabaseError(e));
                 }
@@ -53,9 +71,25 @@ impl Listener {
                 let result = tx_registry.handle(event).await;
                 // destroy the registry and get the transaction
                 let mut tx: PgTransaction<'_> = tx_registry.into();
-                // if the handling failed, fail the event
-                if let Err(_) = result {
-                    Self::fail(&mut tx, id).await?;
+
+                if let Err(error) = result {
+                    // if the handling failed, fail the event
+                    Self::insert_result(
+                        &mut tx,
+                        id,
+                        EventResult::Failed,
+                        Some(error.to_string()),
+                    )
+                    .await?;
+                } else {
+                    // otherwise succeed the event
+                    Self::insert_result(
+                        &mut tx,
+                        id,
+                        EventResult::Succeeded,
+                        None,
+                    )
+                    .await?;
                 }
                 // commit the transaction
                 tx.commit().await?;
@@ -65,46 +99,41 @@ impl Listener {
         Ok(())
     }
 
-    async fn fail<'tx>(
+    async fn insert_result<'tx>(
         tx: &mut sqlx::PgTransaction<'tx>,
-        id: Uuid,
-    ) -> Result<RawEvent, super::ListenerError> {
-        // First check if the event exists and what its current status is
-        let current = sqlx::query!(
-            "SELECT id, status as \"status: crate::models::EventStatus\" FROM fx_event_bus.events WHERE id = $1",
-            id
-        )
-        .fetch_optional(&mut **tx)
-        .await?;
-        
-        tracing::debug!("Event before fail: {:?}", current);
-        
-        if current.is_none() {
-            return Err(super::ListenerError::DatabaseError(
-                sqlx::Error::RowNotFound
-            ));
-        }
-        
-        let failed = sqlx::query_as!(
-            RawEvent,
+        event_id: Uuid,
+        result: EventResult,
+        error_message: Option<String>,
+    ) -> Result<(), super::ListenerError> {
+        sqlx::query!(
             r#"
-                UPDATE fx_event_bus.events
-                SET
-                    failed_at = $2,
-                    status = 'failed'::fx_event_bus.event_status
-                WHERE id = $1
-                RETURNING
-                    id,
-                    name,
-                    hash,
-                    payload
+            INSERT INTO fx_event_bus.results (
+                id,
+                event_id,
+                event_status,
+                status,
+                processed_at,
+                error_message
+            ) VALUES (
+                $1,
+                $2,
+                $3::fx_event_bus.event_status,
+                $4::fx_event_bus.event_result,
+                $5,
+                $6
+            )
             "#,
-            id,
-            Utc::now()
+            Uuid::now_v7(),
+            event_id,
+            EventStatus::Acknowledged as EventStatus,
+            result as EventResult,
+            Utc::now(),
+            error_message
         )
-        .fetch_one(&mut **tx)
+        .execute(&mut **tx)
         .await?;
-        Ok(failed)
+
+        Ok(())
     }
 
     // uses FOR UPDATE SKIP LOCKED to acknowledge and return the next event
@@ -202,14 +231,7 @@ mod tests {
 
         tx.commit().await?;
 
-        loop {
-            let lock = state.lock().await;
-            if lock.count() < 1 {
-                continue;
-            }
-            break;
-        }
-
+        runner.wait_until(1).await;
         runner.cancel();
         runner.join().await?;
 
@@ -257,14 +279,61 @@ mod tests {
         let tx: PgTransaction<'_> = publisher.into();
         tx.commit().await?;
 
-        loop {
-            let lock = state.lock().await;
-            if lock.count() < 1 {
-                continue;
-            }
-            break;
-        }
+        runner.wait_until(1).await;
+        runner.cancel();
+        runner.join().await?;
 
+        let lock = state.lock().await;
+        assert_eq!(lock.count(), 1);
+        assert_eq!(
+            lock.seen,
+            &[(TestEvent::HASH, TestEvent::NAME.to_string(), false)]
+        );
+
+        // Assert that the event was acknowledged and moved to failed
+        let event = get_event_failed(&pool, published.id).await?;
+        assert_eq!(event.id, published.id);
+        assert_eq!(event.name, published.name);
+        assert_eq!(event.hash, published.hash);
+        assert_eq!(event.payload, published.payload);
+        Ok(())
+    }
+
+    #[sqlx::test(migrations = "./migrations")]
+    async fn it_handles_an_event_with_multiple_handlers(
+        pool: sqlx::PgPool
+    ) -> anyhow::Result<()> {
+        init_tracing();
+
+        // Pass none to not fail
+        let state = Arc::new(Mutex::new(SharedHandlerState::new(Some(
+            TestEvent::HASH,
+        ))));
+
+        let handler_alpha = HandlerAlpha::new(&state);
+        let handler_beta = HandlerBeta::new(&state);
+        let group = Group::new().register(handler_alpha).register(handler_beta);
+
+        let registry = EventHandlerRegistry::new().register(group)?;
+
+        let listener = Listener::new(pool.clone(), registry);
+
+        let mut runner = Runner::new();
+        runner.run(listener);
+
+        let tx = pool.begin().await?;
+        let mut publisher = crate::Publisher::new(tx);
+        let published = publisher
+            .publish(TestEvent {
+                a_string: "a_string".to_string(),
+                a_number: 42,
+                a_bool: true,
+            })
+            .await?;
+        let tx: PgTransaction<'_> = publisher.into();
+        tx.commit().await?;
+
+        runner.wait_until(1).await;
         runner.cancel();
         runner.join().await?;
 

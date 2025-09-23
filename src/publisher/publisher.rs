@@ -53,7 +53,14 @@ impl<'tx> Publisher<'tx> {
         let published = sqlx::query_as!(
             RawEvent,
             r#"
-                INSERT INTO fx_event_bus.events (id, name, hash, status, payload, published_at)
+                INSERT INTO fx_event_bus.events (
+                    id,
+                    name,
+                    hash,
+                    status,
+                    payload,
+                    published_at
+                )
                 VALUES ($1, $2, $3, $4::fx_event_bus.event_status, $5, $6)
                 RETURNING id, name, hash, payload
             "#,
@@ -66,12 +73,10 @@ impl<'tx> Publisher<'tx> {
         )
         .fetch_one(&mut *self.tx)
         .await
-        .map_err(|error| {
-            super::PublisherError::DatabaseError {
-                hash: T::HASH,
-                name: T::NAME.to_string(),
-                source: error
-            }
+        .map_err(|error| super::PublisherError::DatabaseError {
+            hash: T::HASH,
+            name: T::NAME.to_string(),
+            source: error,
         })?;
 
         Ok(published)

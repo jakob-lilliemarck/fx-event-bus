@@ -9,15 +9,18 @@ pub async fn get_event_failed(
     let event = sqlx::query_as!(
         RawEvent,
         r#"
-            SELECT
-                id,
-                name,
-                hash,
-                payload
-            FROM
-                fx_event_bus.events_failed
-            WHERE
-                id = $1
+        SELECT
+            id,
+            name,
+            hash,
+            payload
+        FROM fx_event_bus.events
+        WHERE id = (
+            SELECT event_id
+            FROM fx_event_bus.results_failed
+            WHERE event_id = $1
+            LIMIT 1
+        );
         "#,
         id,
     )

@@ -7,6 +7,12 @@ use uuid::Uuid;
 pub enum EventStatus {
     Unacknowledged,
     Acknowledged,
+}
+
+#[derive(Debug, Type)]
+#[sqlx(type_name = "fx_event_bus.event_result", rename_all = "lowercase")]
+pub enum EventResult {
+    Succeeded,
     Failed,
 }
 
@@ -22,12 +28,8 @@ pub trait Event:
 
 #[derive(Debug, Clone)]
 pub struct RawEvent {
-    /// Event ID
     pub id: Uuid,
-    /// Event name
     pub name: String,
-    /// Event hash for fast lookup
     pub hash: i32,
-    /// JSON payload
     pub payload: serde_json::Value,
 }

@@ -1,6 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS fx_event_bus;
 
-CREATE TYPE fx_event_bus.event_status AS ENUM ('unacknowledged', 'acknowledged', 'failed');
+CREATE TYPE fx_event_bus.event_status AS ENUM ('unacknowledged', 'acknowledged');
 
 CREATE TABLE fx_event_bus.events (
     id UUID NOT NULL,
@@ -10,7 +10,6 @@ CREATE TABLE fx_event_bus.events (
     payload JSONB NOT NULL,
     published_at TIMESTAMPTZ NOT NULL,
     acknowledged_at TIMESTAMPTZ,
-    failed_at TIMESTAMPTZ,
     PRIMARY KEY (id, status)
 ) PARTITION BY LIST (status);
 
@@ -21,8 +20,26 @@ FOR VALUES IN ('unacknowledged');
 CREATE TABLE fx_event_bus.events_acknowledged PARTITION OF fx_event_bus.events
 FOR VALUES IN ('acknowledged');
 
-CREATE TABLE fx_event_bus.events_failed PARTITION OF fx_event_bus.events
+-- Results table to track event processing outcomes
+CREATE TYPE fx_event_bus.event_result AS ENUM ('succeeded', 'failed');
+
+CREATE TABLE fx_event_bus.results (
+    id UUID NOT NULL,
+    event_id UUID NOT NULL,
+    event_status fx_event_bus.event_status NOT NULL,
+    status fx_event_bus.event_result NOT NULL,
+    processed_at TIMESTAMPTZ NOT NULL,
+    error_message TEXT,
+    PRIMARY KEY (id, status),
+    FOREIGN KEY (event_id, event_status) REFERENCES fx_event_bus.events(id, status)
+) PARTITION BY LIST (status);
+
+-- Create partitions for results
+CREATE TABLE fx_event_bus.results_failed PARTITION OF fx_event_bus.results
 FOR VALUES IN ('failed');
+
+CREATE TABLE fx_event_bus.results_succeeded PARTITION OF fx_event_bus.results
+FOR VALUES IN ('succeeded');
 
 -- Create a function to notify on event insert
 CREATE OR REPLACE FUNCTION fx_event_bus.notify_event_inserted()

@@ -16,6 +16,7 @@ const-fnv1a-hash = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }

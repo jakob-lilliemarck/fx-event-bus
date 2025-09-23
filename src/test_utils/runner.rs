@@ -1,11 +1,26 @@
-use tokio::task::JoinSet;
-use tokio_util::sync::CancellationToken;
+use std::sync::Arc;
 
 use crate::listener::{ListenerError, listener::Listener};
+use tokio::{
+    sync::{RwLock, mpsc},
+    task::JoinSet,
+};
+use tokio_util::sync::CancellationToken;
+
+pub async fn run_counter(
+    count: Arc<RwLock<usize>>,
+    mut rx: mpsc::Receiver<()>,
+) {
+    while let Some(_) = rx.recv().await {
+        let mut lock = count.write().await;
+        *lock += 1;
+    }
+}
 
 pub struct Runner {
     cancel: CancellationToken,
     set: JoinSet<Result<(), ListenerError>>,
+    count: Arc<RwLock<usize>>,
 }
 
 impl Runner {
@@ -13,6 +28,22 @@ impl Runner {
         Self {
             cancel: CancellationToken::new(),
             set: JoinSet::new(),
+            count: Arc::new(RwLock::new(0)),
+        }
+    }
+
+    pub async fn count(&self) -> usize {
+        *self.count.read().await
+    }
+
+    pub async fn wait_until(
+        &self,
+        until: usize,
+    ) {
+        loop {
+            if until <= *self.count.read().await {
+                break;
+            }
         }
     }
 
@@ -20,13 +51,29 @@ impl Runner {
         &mut self,              // Need mut to spawn on JoinSet
         mut listener: Listener, // Need mut for listener.listen()
     ) {
+        let count = self.count.clone();
+        let (tx, rx) = mpsc::channel(100);
+
         let cancel = self.cancel.clone();
         self.set.spawn(async move {
             tokio::select! {
                 _ = cancel.cancelled() => {
                     Ok(())
                 }
-                result = listener.listen() => {
+                _ = run_counter(count, rx) => {
+                    tracing::info!("Counter finished");
+                    Ok(())
+                }
+            }
+        });
+
+        let cancel = self.cancel.clone();
+        self.set.spawn(async move {
+            tokio::select! {
+                _ = cancel.cancelled() => {
+                    Ok(())
+                }
+                result = listener.listen(Some(tx)) => {
                     result
                 }
             }

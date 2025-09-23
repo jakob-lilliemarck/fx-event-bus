@@ -107,7 +107,7 @@ where
 
 async fn handle_alpha<E>(
     handler: &mut HandlerAlpha<E>,
-    input: &TestEvent,
+    _: &TestEvent,
 ) -> Result<(), EventHandlingError>
 where
     HandlerAlpha<E>: Send,
@@ -195,7 +195,7 @@ where
 
 async fn handle_beta<E>(
     handler: &mut HandlerBeta<E>,
-    input: &TestEvent,
+    _: &TestEvent,
 ) -> Result<(), EventHandlingError>
 where
     HandlerBeta<E>: Send,
