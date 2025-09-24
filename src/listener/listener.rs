@@ -4,7 +4,7 @@ use crate::{
 };
 use chrono::Utc;
 use futures::StreamExt;
-use sqlx::{PgPool, PgTransaction, postgres::PgListener};
+use sqlx::{PgPool, postgres::PgListener};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -12,13 +12,13 @@ const EVENTS_CHANNEL: &str = "fx_event_bus";
 
 pub struct Listener {
     pool: PgPool,
-    registry: EventHandlerRegistry<'static>,
+    registry: EventHandlerRegistry,
 }
 
 impl Listener {
     pub fn new(
         pool: PgPool,
-        registry: EventHandlerRegistry<'static>,
+        registry: EventHandlerRegistry,
     ) -> Self {
         Listener { pool, registry }
     }
@@ -56,7 +56,7 @@ impl Listener {
         Ok(())
     }
 
-    async fn poll(&'static mut self) -> Result<(), super::ListenerError> {
+    async fn poll(&mut self) -> Result<(), super::ListenerError> {
         // begin a transaction
         let mut tx = self.pool.begin().await?;
         // use the transaction to call acknowledge
@@ -66,7 +66,7 @@ impl Listener {
                 // keep the event id for later use
                 let id = event.id;
                 // use the transaction registry to handle the event
-                let (mut tx, result) = self.registry.handle_tx(event, tx).await;
+                let (mut tx, result) = self.registry.handle(event, tx).await;
 
                 if let Err(error) = result {
                     // if the handling failed, fail the event
@@ -174,6 +174,7 @@ mod tests {
         get_event_failed,
     };
     use crate::{Event, Group};
+    use sqlx::PgTransaction;
     use std::sync::Arc;
     use std::sync::Once;
     use tokio::sync::Mutex;

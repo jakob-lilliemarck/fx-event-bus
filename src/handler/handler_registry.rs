@@ -15,12 +15,12 @@ pub enum EventRegistryError {
     },
 }
 
-pub struct EventHandlerRegistry<'a> {
-    handlers: HashMap<i32, Box<dyn HandlerGroup<'a> + Send + Sync>>,
+pub struct EventHandlerRegistry {
+    handlers: HashMap<i32, Box<dyn HandlerGroup>>,
 }
 
-impl<'a> EventHandlerRegistry<'a> {
-    pub fn new() -> EventHandlerRegistry<'a> {
+impl EventHandlerRegistry {
+    pub fn new() -> EventHandlerRegistry {
         Self {
             handlers: HashMap::new(),
         }
@@ -31,7 +31,7 @@ impl<'a> EventHandlerRegistry<'a> {
         group: H,
     ) -> Result<Self, EventRegistryError>
     where
-        H: HandlerGroup<'a> + Send + Sync + 'static,
+        H: HandlerGroup + 'static,
     {
         // Check for hash collision
         self.check_for_collision::<H>(&group)?;
@@ -42,7 +42,7 @@ impl<'a> EventHandlerRegistry<'a> {
         Ok(self)
     }
 
-    fn check_for_collision<H: HandlerGroup<'a>>(
+    fn check_for_collision<H: HandlerGroup>(
         &self,
         handler: &H,
     ) -> Result<(), EventRegistryError> {
@@ -62,31 +62,13 @@ impl<'a> EventHandlerRegistry<'a> {
         Ok(())
     }
 
-    /// Routes the event to its handler group by hash and executes it.
-    pub async fn handle(
-        &mut self,
-        event: RawEvent,
-    ) -> Result<(), EventHandlingError> {
-        match self.handlers.get_mut(&event.hash) {
-            Some(group) => group.handle(event).await,
-            None => Err(EventHandlingError::BusinessLogicError(format!(
-                "No handler group registered for event hash {}",
-                event.hash
-            ))),
-        }
-    }
-
-    pub async fn handle_tx<'tx>(
-        &'a self,
+    pub async fn handle<'tx>(
+        &'tx self,
         event: RawEvent,
         tx: PgTransaction<'tx>,
-    ) -> (sqlx::PgTransaction<'tx>, Result<(), EventHandlingError>)
-    where
-        'a: 'tx,
-        'tx: 'a,
-    {
+    ) -> (PgTransaction<'tx>, Result<(), EventHandlingError>) {
         match self.handlers.get(&event.hash) {
-            Some(group) => group.handle_tx(event, tx).await,
+            Some(group) => group.handle(event, tx).await,
             None => (tx, Ok(())),
         }
     }

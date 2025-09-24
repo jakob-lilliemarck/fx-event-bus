@@ -4,6 +4,6 @@ mod handler_group;
 mod handler_registry;
 
 pub use errors::EventHandlingError;
-pub use event_handler::{EventHandler, TxEventHandler};
+pub use event_handler::EventHandler;
 pub use handler_group::{Group, HandlerGroup};
 pub use handler_registry::EventHandlerRegistry;

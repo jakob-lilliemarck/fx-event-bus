@@ -1,22 +1,12 @@
 use super::EventHandlingError;
-use crate::{chainable::FromOther, models::Event};
-use serde::de::DeserializeOwned;
-use std::future::Future;
+use crate::models::Event;
+use futures::future::BoxFuture;
+use sqlx::PgTransaction;
 
-pub trait EventHandler {
-    type Input: Event + DeserializeOwned;
-
-    fn handle(
-        &mut self,
-        input: &Self::Input,
-    ) -> impl Future<Output = Result<(), EventHandlingError>> + Send;
-}
-
-pub trait TxEventHandler<'tx>: FromOther<'tx> {
-    type Input: Event + DeserializeOwned;
-
-    fn handle(
-        &mut self,
-        input: &Self::Input,
-    ) -> impl Future<Output = Result<(), EventHandlingError>> + Send;
+pub trait EventHandler<E: Event>: Send + Sync {
+    fn handle<'a>(
+        &'a self,
+        input: E,
+        tx: PgTransaction<'a>,
+    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>;
 }

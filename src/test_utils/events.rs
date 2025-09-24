@@ -1,7 +1,7 @@
 use crate::Event;
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct TestEvent {
     pub a_string: String,
     pub a_number: i32,

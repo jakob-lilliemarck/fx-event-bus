@@ -1,12 +1,10 @@
-use super::events::TestEvent;
 use crate::{
-    Event, EventHandler, EventHandlingError, FromOther, TxEventHandler,
+    EventHandler, EventHandlingError, models::Event, test_utils::TestEvent,
 };
+use futures::future::BoxFuture;
 use sqlx::PgTransaction;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
-pub struct NilTx;
 
 // ============================================================
 // Shared handler state
@@ -42,175 +40,84 @@ impl SharedHandlerState {
 // ============================================================
 // Alpha
 // ============================================================
-pub struct HandlerAlpha<E> {
-    executor: E,
+pub struct HandlerAlpha {
     state: Arc<Mutex<SharedHandlerState>>,
 }
 
-impl HandlerAlpha<NilTx> {
+impl HandlerAlpha {
     pub fn new(state: &Arc<Mutex<SharedHandlerState>>) -> Self {
         Self {
-            executor: NilTx,
             state: state.clone(),
         }
     }
 }
-
-impl<'tx> Into<PgTransaction<'tx>> for HandlerAlpha<PgTransaction<'tx>> {
-    fn into(self) -> PgTransaction<'tx> {
-        self.executor
+impl EventHandler<TestEvent> for HandlerAlpha {
+    fn handle<'a>(
+        &'a self,
+        _input: TestEvent,
+        tx: PgTransaction<'a>,
+    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>
+    {
+        Box::pin(async move {
+            let hash = TestEvent::HASH;
+            let name = TestEvent::NAME;
+            let mut lock = self.state.lock().await;
+            if let Some(fail_hash) = lock.fail {
+                if fail_hash == hash {
+                    lock.seen(hash, name.to_string(), false);
+                    return (
+                        tx,
+                        Err(EventHandlingError::BusinessLogicError(
+                            "whatever".to_string(),
+                        )),
+                    );
+                }
+            }
+            lock.seen(hash, name.to_string(), true);
+            (tx, Ok(()))
+        })
     }
-}
-
-impl<'tx, E> FromOther<'tx> for HandlerAlpha<E> {
-    type TxType = HandlerAlpha<PgTransaction<'tx>>;
-
-    fn from(
-        &self,
-        other: impl Into<PgTransaction<'tx>>,
-    ) -> HandlerAlpha<PgTransaction<'tx>> {
-        HandlerAlpha {
-            executor: other.into(),
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<E> EventHandler for HandlerAlpha<E>
-where
-    Self: Send,
-{
-    type Input = TestEvent;
-
-    async fn handle(
-        &mut self,
-        input: &Self::Input,
-    ) -> Result<(), EventHandlingError> {
-        handle_alpha(self, input).await
-    }
-}
-
-// FIXME: I would like to get rid of this!
-impl<'tx, E> TxEventHandler<'tx> for HandlerAlpha<E>
-where
-    Self: Send,
-{
-    type Input = TestEvent;
-
-    async fn handle(
-        &mut self,
-        input: &Self::Input,
-    ) -> Result<(), EventHandlingError> {
-        handle_alpha(self, input).await
-    }
-}
-
-async fn handle_alpha<E>(
-    handler: &mut HandlerAlpha<E>,
-    _: &TestEvent,
-) -> Result<(), EventHandlingError>
-where
-    HandlerAlpha<E>: Send,
-{
-    let hash = <<HandlerAlpha<E> as EventHandler>::Input as Event>::HASH;
-    let name = <<HandlerAlpha<E> as EventHandler>::Input as Event>::NAME;
-    let mut lock = handler.state.lock().await;
-    if let Some(fail_hash) = lock.fail {
-        if fail_hash == hash {
-            lock.seen(hash, name.to_string(), false);
-            return Err(EventHandlingError::BusinessLogicError(
-                "whatever".to_string(),
-            ));
-        }
-    }
-    lock.seen(hash, name.to_string(), true);
-    Ok(())
 }
 
 // ============================================================
 // Beta
 // ============================================================
-pub struct HandlerBeta<E> {
-    executor: E,
+pub struct HandlerBeta {
     state: Arc<Mutex<SharedHandlerState>>,
 }
 
-impl HandlerBeta<NilTx> {
+impl HandlerBeta {
     pub fn new(state: &Arc<Mutex<SharedHandlerState>>) -> Self {
         Self {
-            executor: NilTx,
             state: state.clone(),
         }
     }
 }
 
-impl<'tx> Into<PgTransaction<'tx>> for HandlerBeta<PgTransaction<'tx>> {
-    fn into(self) -> PgTransaction<'tx> {
-        self.executor
+impl EventHandler<TestEvent> for HandlerBeta {
+    fn handle<'a>(
+        &'a self,
+        _input: TestEvent,
+        tx: PgTransaction<'a>,
+    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>
+    {
+        Box::pin(async move {
+            let hash = TestEvent::HASH;
+            let name = TestEvent::NAME;
+            let mut lock = self.state.lock().await;
+            if let Some(fail_hash) = lock.fail {
+                if fail_hash == hash {
+                    lock.seen(hash, name.to_string(), false);
+                    return (
+                        tx,
+                        Err(EventHandlingError::BusinessLogicError(
+                            "whatever".to_string(),
+                        )),
+                    );
+                }
+            }
+            lock.seen(hash, name.to_string(), true);
+            (tx, Ok(()))
+        })
     }
-}
-
-impl<'tx, E> FromOther<'tx> for HandlerBeta<E> {
-    type TxType = HandlerBeta<PgTransaction<'tx>>;
-
-    fn from(
-        &self,
-        other: impl Into<PgTransaction<'tx>>,
-    ) -> HandlerBeta<PgTransaction<'tx>> {
-        HandlerBeta {
-            executor: other.into(),
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl<E> EventHandler for HandlerBeta<E>
-where
-    Self: Send,
-{
-    type Input = TestEvent;
-
-    async fn handle(
-        &mut self,
-        input: &Self::Input,
-    ) -> Result<(), EventHandlingError> {
-        handle_beta(self, input).await
-    }
-}
-
-// FIXME: I would like to get rid of this!
-impl<'tx, E> TxEventHandler<'tx> for HandlerBeta<E>
-where
-    Self: Send,
-{
-    type Input = TestEvent;
-
-    async fn handle(
-        &mut self,
-        input: &Self::Input,
-    ) -> Result<(), EventHandlingError> {
-        handle_beta(self, input).await
-    }
-}
-
-async fn handle_beta<E>(
-    handler: &mut HandlerBeta<E>,
-    _: &TestEvent,
-) -> Result<(), EventHandlingError>
-where
-    HandlerBeta<E>: Send,
-{
-    let hash = <<HandlerBeta<E> as EventHandler>::Input as Event>::HASH;
-    let name = <<HandlerBeta<E> as EventHandler>::Input as Event>::NAME;
-    let mut lock = handler.state.lock().await;
-    if let Some(fail_hash) = lock.fail {
-        if fail_hash == hash {
-            lock.seen(hash, name.to_string(), false);
-            return Err(EventHandlingError::BusinessLogicError(
-                "whatever".to_string(),
-            ));
-        }
-    }
-    lock.seen(hash, name.to_string(), true);
-    Ok(())
 }
