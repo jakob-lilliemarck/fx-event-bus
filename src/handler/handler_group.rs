@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use super::errors::EventHandlingError;
 use crate::handler::event_handler::EventHandler;
 use crate::models::{Event, RawEvent};
@@ -16,27 +18,21 @@ impl<E: Event + Clone> Group<E> {
     }
 
     pub fn register<H>(
-        mut self,
+        &mut self,
         handler: H,
-    ) -> Self
-    where
+    ) where
         H: EventHandler<E> + 'static,
     {
         self.handlers.push(Box::new(handler));
-        self
     }
 }
 
-pub trait HandlerGroup: Send + Sync {
+pub trait HandlerGroup: Send + Sync + Any {
     fn handle<'tx>(
         &'tx self,
         event: RawEvent,
         tx: PgTransaction<'tx>,
     ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), EventHandlingError>)>;
-
-    fn event_hash(&self) -> i32;
-
-    fn event_name(&self) -> &'static str;
 }
 
 impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
@@ -73,13 +69,5 @@ impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
 
             (current_tx, result)
         })
-    }
-
-    fn event_hash(&self) -> i32 {
-        E::HASH
-    }
-
-    fn event_name(&self) -> &'static str {
-        E::NAME
     }
 }

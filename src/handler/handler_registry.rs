@@ -1,19 +1,8 @@
-use super::{EventHandlingError, HandlerGroup};
-use crate::models::RawEvent;
+use super::EventHandlingError;
+use super::handler_group::{Group, HandlerGroup};
+use crate::{Event, EventHandler, models::RawEvent};
 use sqlx::PgTransaction;
-use std::collections::HashMap;
-
-#[derive(thiserror::Error, Debug)]
-pub enum EventRegistryError {
-    #[error(
-        "Hash collision detected: hash {hash} used by both '{existing}' and '{current}'"
-    )]
-    HashCollision {
-        hash: i32,
-        current: String,
-        existing: String,
-    },
-}
+use std::{any::Any, collections::HashMap};
 
 pub struct EventHandlerRegistry {
     handlers: HashMap<i32, Box<dyn HandlerGroup>>,
@@ -26,40 +15,28 @@ impl EventHandlerRegistry {
         }
     }
 
-    pub fn register<H>(
-        mut self,
-        group: H,
-    ) -> Result<Self, EventRegistryError>
-    where
-        H: HandlerGroup + 'static,
+    pub fn with_handler<E, H>(
+        &mut self,
+        handler: H,
+    ) where
+        E: Event + Clone,
+        H: EventHandler<E> + 'static,
     {
-        // Check for hash collision
-        self.check_for_collision::<H>(&group)?;
+        // Get or create the group
+        let group = self
+            .handlers
+            .entry(E::HASH)
+            .or_insert(Box::new(Group::<E>::new()));
 
-        // Register the handler
-        self.handlers.insert(group.event_hash(), Box::new(group));
+        // Convert to &mut dyn Any in order to be able to downcast
+        let any_ref = group.as_mut() as &mut (dyn Any + '_);
 
-        Ok(self)
-    }
+        // Downcast the trait object back to concrete type
+        let group = any_ref
+            .downcast_mut::<Group<E>>()
+            .expect("Could not downcast to group. This indicates a hash collision between event types");
 
-    fn check_for_collision<H: HandlerGroup>(
-        &self,
-        handler: &H,
-    ) -> Result<(), EventRegistryError> {
-        let hash = handler.event_hash();
-        let name = handler.event_name();
-
-        if let Some(existing) = self.handlers.get(&hash) {
-            if existing.event_name() != name {
-                return Err(EventRegistryError::HashCollision {
-                    hash: hash,
-                    current: name.to_owned(),
-                    existing: existing.event_name().to_owned(),
-                });
-            }
-        }
-
-        Ok(())
+        group.register(handler);
     }
 
     pub async fn handle<'tx>(

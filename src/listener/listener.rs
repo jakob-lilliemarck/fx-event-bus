@@ -169,11 +169,11 @@ impl Listener {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Event;
     use crate::test_utils::{
         HandlerAlpha, HandlerBeta, Runner, SharedHandlerState, TestEvent,
         get_event_failed,
     };
-    use crate::{Event, Group};
     use sqlx::PgTransaction;
     use std::sync::Arc;
     use std::sync::Once;
@@ -203,9 +203,8 @@ mod tests {
 
         let handler_alpha = HandlerAlpha::new(&state);
 
-        let group = Group::new().register(handler_alpha);
-
-        let registry = EventHandlerRegistry::new().register(group)?;
+        let mut registry = EventHandlerRegistry::new();
+        registry.with_handler(handler_alpha);
 
         let listener = Listener::new(pool.clone(), registry);
 
@@ -255,9 +254,8 @@ mod tests {
 
         let handler_alpha = HandlerAlpha::new(&state);
 
-        let group = Group::new().register(handler_alpha);
-
-        let registry = EventHandlerRegistry::new().register(group)?;
+        let mut registry = EventHandlerRegistry::new();
+        registry.with_handler(handler_alpha);
 
         let listener = Listener::new(pool.clone(), registry);
 
@@ -309,9 +307,10 @@ mod tests {
 
         let handler_alpha = HandlerAlpha::new(&state);
         let handler_beta = HandlerBeta::new(&state);
-        let group = Group::new().register(handler_alpha).register(handler_beta);
 
-        let registry = EventHandlerRegistry::new().register(group)?;
+        let mut registry = EventHandlerRegistry::new();
+        registry.with_handler(handler_alpha);
+        registry.with_handler(handler_beta);
 
         let listener = Listener::new(pool.clone(), registry);
 
