@@ -33,18 +33,72 @@ impl<'tx> FromOther<'tx> for Publisher<'tx> {
 }
 
 impl<'tx> Publisher<'tx> {
-    pub async fn publish<T>(
+    pub async fn publish_many<E: Event>(
         &mut self,
-        event: T,
-    ) -> Result<RawEvent, super::PublisherError>
-    where
-        T: Event,
-    {
+        events: &[E],
+    ) -> Result<(), super::PublisherError> {
+        let len = events.len();
+
+        if len == 0 {
+            return Ok(());
+        }
+
+        let now = Utc::now();
+
+        let payloads = events
+            .iter()
+            .map(|event| {
+                serde_json::to_value(event).map_err(|error| {
+                    super::PublisherError::SerializationError {
+                        hash: E::HASH,
+                        name: E::NAME.to_string(),
+                        source: error,
+                    }
+                })
+            })
+            .collect::<Result<Vec<serde_json::Value>, super::PublisherError>>(
+            )?;
+
+        let mut query_builder = sqlx::QueryBuilder::new(
+            "INSERT INTO fx_event_bus.events (
+                id,
+                name,
+                hash,
+                status,
+                payload,
+                published_at
+            ) ",
+        );
+
+        query_builder.push_values(payloads, |mut b, payload| {
+            b.push_bind(Uuid::now_v7())
+                .push_bind(E::NAME)
+                .push_bind(E::HASH)
+                .push_bind(EventStatus::Unacknowledged as EventStatus)
+                .push_bind(payload)
+                .push_bind(&now);
+        });
+
+        query_builder.build().execute(&mut *self.tx).await.map_err(
+            |error| super::PublisherError::DatabaseError {
+                hash: E::HASH,
+                name: E::NAME.to_string(),
+                source: error,
+            },
+        )?;
+
+        Ok(())
+    }
+
+    pub async fn publish<E: Event>(
+        &mut self,
+        event: E,
+    ) -> Result<RawEvent, super::PublisherError> {
         // Serialize the event
         let payload = serde_json::to_value(&event).map_err(|error| {
             super::PublisherError::SerializationError {
-                hash: T::HASH,
-                name: T::HASH.to_string(),
+                hash: E::HASH,
+                name: E::HASH.to_string(),
                 source: error,
             }
         })?;
@@ -65,8 +119,8 @@ impl<'tx> Publisher<'tx> {
                 RETURNING id, name, hash, payload
             "#,
             Uuid::now_v7(),
-            T::NAME,
-            T::HASH,
+            E::NAME,
+            E::HASH,
             EventStatus::Unacknowledged as EventStatus,
             payload,
             Utc::now()
@@ -74,8 +128,8 @@ impl<'tx> Publisher<'tx> {
         .fetch_one(&mut *self.tx)
         .await
         .map_err(|error| super::PublisherError::DatabaseError {
-            hash: T::HASH,
-            name: T::NAME.to_string(),
+            hash: E::HASH,
+            name: E::NAME.to_string(),
             source: error,
         })?;
 
@@ -90,7 +144,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     // Test event for our tests
-    #[derive(Debug, Serialize, Deserialize)]
+    #[derive(Clone, Debug, Serialize, Deserialize)]
     struct TestEvent {
         message: String,
         value: i32,

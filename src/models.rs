@@ -18,7 +18,7 @@ pub enum EventResult {
 
 /// Event trait for type-safe event publishing and deserialization
 pub trait Event:
-    serde::Serialize + serde::de::DeserializeOwned + Send + 'static
+    serde::Serialize + serde::de::DeserializeOwned + Clone + Send + 'static
 {
     /// The event name for this event type
     const NAME: &'static str;

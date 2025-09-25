@@ -56,7 +56,7 @@ impl Listener {
         Ok(())
     }
 
-    async fn poll(&mut self) -> Result<(), super::ListenerError> {
+    pub async fn poll(&self) -> Result<(), super::ListenerError> {
         // begin a transaction
         let mut tx = self.pool.begin().await?;
         // use the transaction to call acknowledge

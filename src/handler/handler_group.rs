@@ -1,10 +1,9 @@
-use std::any::Any;
-
 use super::errors::EventHandlingError;
 use crate::handler::event_handler::EventHandler;
 use crate::models::{Event, RawEvent};
 use futures::future::BoxFuture;
 use sqlx::PgTransaction;
+use std::any::Any;
 
 pub struct Group<E: Event> {
     handlers: Vec<Box<dyn EventHandler<E>>>,

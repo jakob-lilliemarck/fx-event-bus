@@ -3,6 +3,10 @@ name = "fx-event-bus"
 version = "0.1.0"
 edition = "2024"
 
+[[example]]
+name = "benchmark"
+path = "examples/throughput_benchmark.rs"
+
 [lib]
 path = "src/lib.rs"
 
@@ -23,3 +27,4 @@ anyhow = { workspace = true }
 tokio = { workspace = true }
 tracing-subscriber = { workspace = true }
 tokio-util = { workspace = true }
+dotenv = { workspace = true }
