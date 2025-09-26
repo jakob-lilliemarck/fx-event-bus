@@ -151,7 +151,7 @@ impl Listener {
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1
                 ) next
-                WHERE events.id = next.id
+                WHERE events.id = next.id AND events.status = 'unacknowledged'
                 RETURNING
                     events.id,
                     events.name,

@@ -20,6 +20,10 @@ FOR VALUES IN ('unacknowledged');
 CREATE TABLE fx_event_bus.events_acknowledged PARTITION OF fx_event_bus.events
 FOR VALUES IN ('acknowledged');
 
+-- Index the unacknowledged partition for efficient polling using the same sort order
+CREATE INDEX idx_events_unacknowledged_queue
+ON fx_event_bus.events_unacknowledged (published_at ASC, id ASC);
+
 -- Results table to track event processing outcomes
 CREATE TYPE fx_event_bus.event_result AS ENUM ('succeeded', 'failed');
 
