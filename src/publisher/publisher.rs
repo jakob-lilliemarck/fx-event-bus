@@ -59,13 +59,12 @@ impl<'tx> Publisher<'tx> {
             )?;
 
         let mut query_builder = sqlx::QueryBuilder::new(
-            "INSERT INTO fx_event_bus.events (
+            "INSERT INTO fx_event_bus.events_unacknowledged (
                 id,
                 name,
                 hash,
                 payload,
-                published_at,
-                acknowledged
+                published_at
             ) ",
         );
 
@@ -74,8 +73,7 @@ impl<'tx> Publisher<'tx> {
                 .push_bind(E::NAME)
                 .push_bind(E::HASH)
                 .push_bind(payload)
-                .push_bind(&now)
-                .push_bind(false);
+                .push_bind(&now);
         });
 
         query_builder.build().execute(&mut *self.tx).await.map_err(
@@ -106,16 +104,15 @@ impl<'tx> Publisher<'tx> {
         let published = sqlx::query_as!(
             RawEvent,
             r#"
-                INSERT INTO fx_event_bus.events (
-                    id,
-                    name,
-                    hash,
-                    payload,
-                    published_at,
-                    acknowledged
-                )
-                VALUES ($1, $2, $3, $4, $5, FALSE)
-                RETURNING id, name, hash, payload
+            INSERT INTO fx_event_bus.events_unacknowledged (
+                id,
+                name,
+                hash,
+                payload,
+                published_at
+            )
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, name, hash, payload
             "#,
             Uuid::now_v7(),
             E::NAME,

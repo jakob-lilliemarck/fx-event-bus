@@ -128,24 +128,26 @@ impl Listener {
 
     // uses FOR UPDATE SKIP LOCKED to acknowledge and return the next event
     // process the event using the same transaction to ensure consistency
-    async fn acknowledge<'tx>(
+    pub async fn acknowledge<'tx>(
         tx: &mut sqlx::PgTransaction<'tx>
     ) -> Result<Option<RawEvent>, super::ListenerError> {
         let acknowledged = sqlx::query_as!(
             RawEvent,
             r#"
-                UPDATE fx_event_bus.events
-                SET
-                    acknowledged = TRUE,
-                    acknowledged_at = $1
-                WHERE id = (
-                    SELECT id
-                    FROM fx_event_bus.events
-                    WHERE acknowledged = FALSE
-                    ORDER BY published_at ASC, id ASC
-                    FOR UPDATE SKIP LOCKED
-                    LIMIT 1
+                WITH next_event AS (
+                    DELETE FROM fx_event_bus.events_unacknowledged
+                    WHERE id = (
+                        SELECT id
+                        FROM fx_event_bus.events_unacknowledged
+                        ORDER BY published_at ASC, id ASC
+                        FOR UPDATE SKIP LOCKED
+                        LIMIT 1
+                    )
+                    RETURNING *
                 )
+                INSERT INTO fx_event_bus.events_acknowledged
+                SELECT id, name, hash, payload, published_at, $1 as acknowledged_at
+                FROM next_event
                 RETURNING id, name, hash, payload;
             "#,
             Utc::now(),
@@ -161,8 +163,8 @@ mod tests {
     use super::*;
     use crate::Event;
     use crate::test_utils::{
-        HandlerAlpha, HandlerBeta, Runner, SharedHandlerState, TestEvent,
-        get_event_failed,
+        HandlerAlpha, HandlerBeta, HandlerGamma, Runner, SharedHandlerState,
+        TestEvent, get_event_failed,
     };
     use sqlx::PgTransaction;
     use std::sync::Arc;
@@ -336,6 +338,32 @@ mod tests {
         assert_eq!(event.name, published.name);
         assert_eq!(event.hash, published.hash);
         assert_eq!(event.payload, published.payload);
+        Ok(())
+    }
+
+    #[sqlx::test(migrations = "./migrations")]
+    async fn it_skips_locked_rows_during_poll(
+        pool: sqlx::PgPool
+    ) -> anyhow::Result<()> {
+        let tx = pool.begin().await?;
+        let mut publisher = crate::Publisher::new(tx);
+        publisher
+            .publish(TestEvent {
+                a_string: "a_string".to_string(),
+                a_number: 42,
+                a_bool: true,
+            })
+            .await?;
+        let tx: PgTransaction<'_> = publisher.into();
+        tx.commit().await?;
+
+        let handler_gamma = HandlerGamma::new(pool.clone());
+        let mut registry = EventHandlerRegistry::new();
+        registry.with_handler(handler_gamma);
+
+        let listener = Listener::new(pool.clone(), registry);
+        listener.poll().await?;
+
         Ok(())
     }
 }

@@ -1,8 +1,9 @@
 use crate::{
-    EventHandler, EventHandlingError, models::Event, test_utils::TestEvent,
+    EventHandler, EventHandlingError, listener::listener::Listener,
+    models::Event, test_utils::TestEvent,
 };
 use futures::future::BoxFuture;
-use sqlx::PgTransaction;
+use sqlx::{PgPool, PgTransaction};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -117,6 +118,50 @@ impl EventHandler<TestEvent> for HandlerBeta {
                 }
             }
             lock.seen(hash, name.to_string(), true);
+            (tx, Ok(()))
+        })
+    }
+}
+
+// ============================================================
+// Gamma
+// ============================================================
+pub struct HandlerGamma {
+    pool: PgPool,
+}
+
+impl HandlerGamma {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+impl EventHandler<TestEvent> for HandlerGamma {
+    fn handle<'a>(
+        &'a self,
+        _input: TestEvent,
+        tx: PgTransaction<'a>,
+    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>
+    {
+        let pool = self.pool.clone();
+        Box::pin(async move {
+            let mut inner_tx =
+                pool.begin().await.expect("Could not start transaction");
+
+            match Listener::acknowledge(&mut inner_tx).await {
+                Ok(Some(event)) => {
+                    panic!("Expected not to find event. Found {:?}", event.id);
+                }
+                Err(err) => {
+                    panic!("Unexpected error: {:?}", err)
+                }
+                Ok(None) => {
+                    tracing::info!("No event found");
+                }
+            }
+
+            inner_tx.commit().await.expect("Failed to commit");
+
             (tx, Ok(()))
         })
     }

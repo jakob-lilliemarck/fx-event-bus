@@ -1,3 +1,4 @@
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::RawEvent;
@@ -14,7 +15,7 @@ pub async fn get_event_failed(
             name,
             hash,
             payload
-        FROM fx_event_bus.events
+        FROM fx_event_bus.events_acknowledged
         WHERE id = (
             SELECT event_id
             FROM fx_event_bus.results_failed
@@ -30,7 +31,7 @@ pub async fn get_event_failed(
 }
 
 pub async fn get_event_acknowledged(
-    pool: &sqlx::PgPool,
+    pool: &PgPool,
     id: Uuid,
 ) -> Result<RawEvent, sqlx::Error> {
     let event = sqlx::query_as!(
@@ -42,9 +43,9 @@ pub async fn get_event_acknowledged(
                 hash,
                 payload
             FROM
-                fx_event_bus.events
+                fx_event_bus.events_acknowledged
             WHERE
-                id = $1 AND acknowledged IS TRUE
+                id = $1
         "#,
         id,
     )
@@ -54,7 +55,7 @@ pub async fn get_event_acknowledged(
 }
 
 pub async fn get_event_unacknowledged(
-    pool: &sqlx::PgPool,
+    pool: &PgPool,
     id: Uuid,
 ) -> Result<RawEvent, sqlx::Error> {
     let event = sqlx::query_as!(
@@ -66,9 +67,9 @@ pub async fn get_event_unacknowledged(
                 hash,
                 payload
             FROM
-                fx_event_bus.events
+                fx_event_bus.events_unacknowledged
             WHERE
-                id = $1 AND acknowledged IS FALSE
+                id = $1
         "#,
         id,
     )
