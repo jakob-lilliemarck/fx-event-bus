@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::listener::{ListenerError, listener::Listener};
 use tokio::{
-    sync::{RwLock, mpsc},
+    sync::{RwLock, mpsc, oneshot},
     task::JoinSet,
 };
 use tokio_util::sync::CancellationToken;
@@ -16,7 +16,6 @@ pub async fn run_counter(
         *lock += 1;
     }
 }
-
 pub struct Runner {
     cancel: CancellationToken,
     set: JoinSet<Result<(), ListenerError>>,
@@ -41,18 +40,23 @@ impl Runner {
         until: usize,
     ) {
         loop {
-            if until <= *self.count.read().await {
+            let current_count = *self.count.read().await;
+            if until <= current_count {
                 break;
             }
+
+            // Small delay to prevent busy waiting and allow other tasks to run
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
     }
 
-    pub fn run(
-        &mut self,              // Need mut to spawn on JoinSet
-        mut listener: Listener, // Need mut for listener.listen()
+    pub async fn run(
+        &mut self,
+        mut listener: Listener,
     ) {
         let count = self.count.clone();
         let (tx, rx) = mpsc::channel(100);
+        let (ready_tx, ready_rx) = oneshot::channel();
 
         let cancel = self.cancel.clone();
         self.set.spawn(async move {
@@ -61,7 +65,6 @@ impl Runner {
                     Ok(())
                 }
                 _ = run_counter(count, rx) => {
-                    tracing::info!("Counter finished");
                     Ok(())
                 }
             }
@@ -73,11 +76,13 @@ impl Runner {
                 _ = cancel.cancelled() => {
                     Ok(())
                 }
-                result = listener.listen(Some(tx)) => {
+                result = listener.listen(Some(tx), Some(ready_tx)) => {
                     result
                 }
             }
         });
+
+        let _ = ready_rx.await; // Wait for listener to signal it's ready
     }
 
     pub fn cancel(&self) {

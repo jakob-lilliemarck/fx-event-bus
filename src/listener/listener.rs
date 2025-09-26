@@ -2,7 +2,7 @@ use crate::{EventHandlerRegistry, RawEvent, models::EventResult};
 use chrono::Utc;
 use futures::StreamExt;
 use sqlx::{PgPool, postgres::PgListener};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 const EVENTS_CHANNEL: &str = "fx_event_bus";
@@ -20,14 +20,20 @@ impl Listener {
         Listener { pool, registry }
     }
 
-    // Uses PgNotify to listen for events and calls the provided callback
-    // The callback is called for each notification received
+    // Uses PgNotify to listen for events and processes them
+    // Sends notifications via the provided channel when events are processed
     pub async fn listen(
         &mut self,
         tx: Option<mpsc::Sender<()>>,
+        ready_signal: Option<oneshot::Sender<()>>,
     ) -> Result<(), super::ListenerError> {
         let mut listener = PgListener::connect_with(&self.pool).await?;
         listener.listen(EVENTS_CHANNEL).await?;
+
+        // Signal that we're ready to receive notifications if requested
+        if let Some(ready_signal) = ready_signal {
+            let _ = ready_signal.send(());
+        }
 
         let mut stream = listener.into_stream();
         while let Some(notification_result) = stream.next().await {
@@ -36,11 +42,9 @@ impl Listener {
                     self.poll().await?;
                     // If a channel is provided, send a message to it
                     if let Some(tx) = &tx {
-                        if let Err(err) = tx.send(()).await {
-                            tracing::error!(
-                                "Failed to send event to listener: {}",
-                                err
-                            );
+                        if let Err(_) = tx.send(()).await {
+                            // Channel closed, stop processing
+                            break;
                         }
                     }
                 }
@@ -201,7 +205,7 @@ mod tests {
         let listener = Listener::new(pool.clone(), registry);
 
         let mut runner = Runner::new();
-        runner.run(listener);
+        runner.run(listener).await;
 
         let tx = pool.begin().await?;
 
@@ -252,7 +256,7 @@ mod tests {
         let listener = Listener::new(pool.clone(), registry);
 
         let mut runner = Runner::new();
-        runner.run(listener);
+        runner.run(listener).await;
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
@@ -307,7 +311,7 @@ mod tests {
         let listener = Listener::new(pool.clone(), registry);
 
         let mut runner = Runner::new();
-        runner.run(listener);
+        runner.run(listener).await;
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
