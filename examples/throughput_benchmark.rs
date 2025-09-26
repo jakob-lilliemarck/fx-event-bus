@@ -166,7 +166,7 @@ async fn main() -> anyhow::Result<()> {
     registry.with_handler(ThroughputBenchmarkHandler);
 
     let listener = Listener::new(pool.clone(), registry);
-    let mut bencher = Bencher::new(listener, 25, pool);
+    let mut bencher = Bencher::new(listener, 250, pool);
 
     bencher.run().await?;
 

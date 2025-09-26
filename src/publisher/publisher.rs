@@ -1,4 +1,3 @@
-use crate::models::EventStatus;
 use crate::{Event, FromOther, RawEvent};
 use chrono::Utc;
 use sqlx::PgTransaction;
@@ -64,9 +63,9 @@ impl<'tx> Publisher<'tx> {
                 id,
                 name,
                 hash,
-                status,
                 payload,
-                published_at
+                published_at,
+                acknowledged
             ) ",
         );
 
@@ -74,9 +73,9 @@ impl<'tx> Publisher<'tx> {
             b.push_bind(Uuid::now_v7())
                 .push_bind(E::NAME)
                 .push_bind(E::HASH)
-                .push_bind(EventStatus::Unacknowledged as EventStatus)
                 .push_bind(payload)
-                .push_bind(&now);
+                .push_bind(&now)
+                .push_bind(false);
         });
 
         query_builder.build().execute(&mut *self.tx).await.map_err(
@@ -98,7 +97,7 @@ impl<'tx> Publisher<'tx> {
         let payload = serde_json::to_value(&event).map_err(|error| {
             super::PublisherError::SerializationError {
                 hash: E::HASH,
-                name: E::HASH.to_string(),
+                name: E::NAME.to_string(),
                 source: error,
             }
         })?;
@@ -111,17 +110,16 @@ impl<'tx> Publisher<'tx> {
                     id,
                     name,
                     hash,
-                    status,
                     payload,
-                    published_at
+                    published_at,
+                    acknowledged
                 )
-                VALUES ($1, $2, $3, $4::fx_event_bus.event_status, $5, $6)
+                VALUES ($1, $2, $3, $4, $5, FALSE)
                 RETURNING id, name, hash, payload
             "#,
             Uuid::now_v7(),
             E::NAME,
             E::HASH,
-            EventStatus::Unacknowledged as EventStatus,
             payload,
             Utc::now()
         )
@@ -157,6 +155,32 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_publishes_evens(pool: sqlx::PgPool) -> anyhow::Result<()> {
+        let tx = pool.begin().await?;
+        let mut publisher = Publisher::new(tx);
+
+        let published = publisher
+            .publish(TestEvent {
+                message: "testing testing".to_string(),
+                value: 42,
+            })
+            .await?;
+
+        assert_eq!(published.hash, TestEvent::HASH);
+        assert_eq!(published.name, TestEvent::NAME);
+        assert_eq!(
+            published.payload,
+            serde_json::json!({
+                "message": "testing testing",
+                "value": 42
+            })
+        );
+
+        Ok(())
+    }
+    #[sqlx::test(migrations = "./migrations")]
+    async fn it_publishes_many_events(
+        pool: sqlx::PgPool
+    ) -> anyhow::Result<()> {
         let tx = pool.begin().await?;
         let mut publisher = Publisher::new(tx);
 

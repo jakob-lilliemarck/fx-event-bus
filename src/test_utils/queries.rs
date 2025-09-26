@@ -42,9 +42,9 @@ pub async fn get_event_acknowledged(
                 hash,
                 payload
             FROM
-                fx_event_bus.events_acknowledged
+                fx_event_bus.events
             WHERE
-                id = $1
+                id = $1 AND acknowledged IS TRUE
         "#,
         id,
     )
@@ -66,9 +66,9 @@ pub async fn get_event_unacknowledged(
                 hash,
                 payload
             FROM
-                fx_event_bus.events_unacknowledged
+                fx_event_bus.events
             WHERE
-                id = $1
+                id = $1 AND acknowledged IS FALSE
         "#,
         id,
     )

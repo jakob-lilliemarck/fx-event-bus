@@ -1,7 +1,4 @@
-use crate::{
-    EventHandlerRegistry, RawEvent,
-    models::{EventResult, EventStatus},
-};
+use crate::{EventHandlerRegistry, RawEvent, models::EventResult};
 use chrono::Utc;
 use futures::StreamExt;
 use sqlx::{PgPool, postgres::PgListener};
@@ -106,22 +103,19 @@ impl Listener {
             INSERT INTO fx_event_bus.results (
                 id,
                 event_id,
-                event_status,
                 status,
                 processed_at,
                 error_message
             ) VALUES (
                 $1,
                 $2,
-                $3::fx_event_bus.event_status,
-                $4::fx_event_bus.event_result,
-                $5,
-                $6
+                $3::fx_event_bus.event_result,
+                $4,
+                $5
             )
             "#,
             Uuid::now_v7(),
             event_id,
-            EventStatus::Acknowledged as EventStatus,
             result as EventResult,
             Utc::now(),
             error_message
@@ -142,21 +136,17 @@ impl Listener {
             r#"
                 UPDATE fx_event_bus.events
                 SET
-                    acknowledged_at = $1,
-                    status = 'acknowledged'
-                FROM (
+                    acknowledged = TRUE,
+                    acknowledged_at = $1
+                WHERE id = (
                     SELECT id
-                    FROM fx_event_bus.events_unacknowledged
+                    FROM fx_event_bus.events
+                    WHERE acknowledged = FALSE
                     ORDER BY published_at ASC, id ASC
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1
-                ) next
-                WHERE events.id = next.id AND events.status = 'unacknowledged'
-                RETURNING
-                    events.id,
-                    events.name,
-                    events.hash,
-                    events.payload
+                )
+                RETURNING id, name, hash, payload;
             "#,
             Utc::now(),
         )
