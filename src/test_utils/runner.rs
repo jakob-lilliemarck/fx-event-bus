@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::listener::{ListenerError, listener::Listener};
 use tokio::{
-    sync::{RwLock, mpsc, oneshot},
+    sync::{RwLock, mpsc},
     task::JoinSet,
 };
 use tokio_util::sync::CancellationToken;
@@ -56,7 +56,6 @@ impl Runner {
     ) {
         let count = self.count.clone();
         let (tx, rx) = mpsc::channel(100);
-        let (ready_tx, ready_rx) = oneshot::channel();
 
         let cancel = self.cancel.clone();
         self.set.spawn(async move {
@@ -76,13 +75,11 @@ impl Runner {
                 _ = cancel.cancelled() => {
                     Ok(())
                 }
-                result = listener.listen(Some(tx), Some(ready_tx)) => {
+                result = listener.listen(Some(tx)) => {
                     result
                 }
             }
         });
-
-        let _ = ready_rx.await; // Wait for listener to signal it's ready
     }
 
     pub fn cancel(&self) {

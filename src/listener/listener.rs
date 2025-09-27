@@ -1,8 +1,10 @@
+use super::poll_control::PollControlStream;
 use crate::{EventHandlerRegistry, RawEvent, models::EventResult};
 use chrono::Utc;
 use futures::StreamExt;
 use sqlx::{PgPool, postgres::PgListener};
-use tokio::sync::{mpsc, oneshot};
+use std::time::Duration;
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 const EVENTS_CHANNEL: &str = "fx_event_bus";
@@ -25,31 +27,45 @@ impl Listener {
     pub async fn listen(
         &mut self,
         tx: Option<mpsc::Sender<()>>,
-        ready_signal: Option<oneshot::Sender<()>>,
     ) -> Result<(), super::ListenerError> {
+        let mut control = PollControlStream::new(
+            Duration::from_millis(500),
+            Duration::from_millis(2_500),
+        );
+
         let mut listener = PgListener::connect_with(&self.pool).await?;
         listener.listen(EVENTS_CHANNEL).await?;
+        let pg_stream = listener.into_stream();
 
-        // Signal that we're ready to receive notifications if requested
-        if let Some(ready_signal) = ready_signal {
-            let _ = ready_signal.send(());
-        }
+        control.with_pg_stream(pg_stream);
 
-        let mut stream = listener.into_stream();
-        while let Some(notification_result) = stream.next().await {
-            match notification_result {
-                Ok(_) => {
-                    self.poll().await?;
-                    // If a channel is provided, send a message to it
-                    if let Some(tx) = &tx {
-                        if let Err(_) = tx.send(()).await {
-                            // Channel closed, stop processing
-                            break;
+        while let Some(result) = control.next().await {
+            if let Err(err) = result {
+                tracing::warn!(message="The control stream returned an error", error=?err)
+            }
+
+            match self.poll().await {
+                Ok(handled) => {
+                    // Reset failed attempts on success
+                    control.reset_failed_attempts();
+                    // If an event was handled, override the next wait
+                    if handled {
+                        control.set_poll();
+                        // If a channel is provided, send a message to it
+                        if let Some(tx) = &tx {
+                            if let Err(_) = tx.send(()).await {
+                                // Channel closed, stop processing
+                                break;
+                            }
                         }
                     }
                 }
-                Err(e) => {
-                    return Err(super::ListenerError::DatabaseError(e));
+                Err(err) => {
+                    tracing::warn!(
+                        message = "Polling for events returned an error",
+                        error = ?err
+                    );
+                    control.increment_failed_attempts();
                 }
             }
         }
@@ -57,12 +73,12 @@ impl Listener {
         Ok(())
     }
 
-    pub async fn poll(&self) -> Result<(), super::ListenerError> {
+    pub async fn poll(&self) -> Result<bool, super::ListenerError> {
         // begin a transaction
         let mut tx = self.pool.begin().await?;
         // use the transaction to call acknowledge
         match Self::acknowledge(&mut tx).await? {
-            None => return Ok(()),
+            None => return Ok(false),
             Some(event) => {
                 // keep the event id for later use
                 let id = event.id;
@@ -90,10 +106,9 @@ impl Listener {
                 }
                 // commit the transaction
                 tx.commit().await?;
+                return Ok(true);
             }
         }
-
-        Ok(())
     }
 
     async fn insert_result<'tx>(
