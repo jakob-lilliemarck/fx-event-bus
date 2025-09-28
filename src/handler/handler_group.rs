@@ -1,6 +1,7 @@
 use super::errors::EventHandlingError;
 use crate::handler::event_handler::EventHandler;
 use crate::models::{Event, RawEvent};
+use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use sqlx::PgTransaction;
 use std::any::Any;
@@ -30,6 +31,7 @@ pub trait HandlerGroup: Send + Sync + Any {
     fn handle<'tx>(
         &'tx self,
         event: RawEvent,
+        polled_at: DateTime<Utc>,
         tx: PgTransaction<'tx>,
     ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), EventHandlingError>)>;
 }
@@ -38,6 +40,7 @@ impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
     fn handle<'tx>(
         &'tx self,
         event: RawEvent,
+        polled_at: DateTime<Utc>,
         tx: PgTransaction<'tx>,
     ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), EventHandlingError>)>
     {
@@ -57,7 +60,7 @@ impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
 
             for handler in &self.handlers {
                 let (returned_tx, handler_result) =
-                    handler.handle(typed.clone(), current_tx).await;
+                    handler.handle(typed.clone(), polled_at, current_tx).await;
                 current_tx = returned_tx;
 
                 if let Err(err) = handler_result {

@@ -1,20 +1,5 @@
 use const_fnv1a_hash::fnv1a_hash_str_32;
-use sqlx::Type;
 use uuid::Uuid;
-
-#[derive(Debug, Type)]
-#[sqlx(type_name = "fx_event_bus.event_status", rename_all = "lowercase")]
-pub enum EventStatus {
-    Unacknowledged,
-    Acknowledged,
-}
-
-#[derive(Debug, Type)]
-#[sqlx(type_name = "fx_event_bus.event_result", rename_all = "lowercase")]
-pub enum EventResult {
-    Succeeded,
-    Failed,
-}
 
 /// Event trait for type-safe event publishing and deserialization
 pub trait Event:
@@ -32,4 +17,5 @@ pub struct RawEvent {
     pub name: String,
     pub hash: i32,
     pub payload: serde_json::Value,
+    pub attempted: i32,
 }

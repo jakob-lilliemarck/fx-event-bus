@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use fx_event_bus::{
     Event, EventHandler, EventHandlerRegistry, Publisher,
     listener::listener::Listener,
@@ -22,7 +23,8 @@ struct ThroughputBenchmarkHandler;
 impl EventHandler<ThroughputBenchmarkEvent> for ThroughputBenchmarkHandler {
     fn handle<'a>(
         &'a self,
-        _: ThroughputBenchmarkEvent,
+        _input: ThroughputBenchmarkEvent,
+        _polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
     ) -> futures::future::BoxFuture<
         'a,
@@ -166,7 +168,7 @@ async fn main() -> anyhow::Result<()> {
     registry.with_handler(ThroughputBenchmarkHandler);
 
     let listener = Listener::new(pool.clone(), registry);
-    let mut bencher = Bencher::new(listener, 100, pool);
+    let mut bencher = Bencher::new(listener, 1_000, pool);
 
     bencher.run().await?;
 

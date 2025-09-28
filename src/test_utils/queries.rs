@@ -6,26 +6,30 @@ use crate::RawEvent;
 pub async fn get_event_failed(
     pool: &sqlx::PgPool,
     id: Uuid,
-) -> Result<RawEvent, sqlx::Error> {
+) -> Result<Vec<RawEvent>, sqlx::Error> {
     let event = sqlx::query_as!(
         RawEvent,
         r#"
+        WITH failed AS (
+            SELECT
+                event_id,
+                attempted
+            FROM fx_event_bus.attempts_failed
+            WHERE event_id = $1
+        )
         SELECT
             id,
             name,
             hash,
-            payload
+            payload,
+            attempted
         FROM fx_event_bus.events_acknowledged
-        WHERE id = (
-            SELECT event_id
-            FROM fx_event_bus.results_failed
-            WHERE event_id = $1
-            LIMIT 1
-        );
+        JOIN failed ON failed.event_id = fx_event_bus.events_acknowledged.id
+        WHERE id = event_id
         "#,
         id,
     )
-    .fetch_one(pool)
+    .fetch_all(pool)
     .await?;
     Ok(event)
 }
@@ -41,7 +45,8 @@ pub async fn get_event_acknowledged(
                 id,
                 name,
                 hash,
-                payload
+                payload,
+                0 "attempted!:i32"
             FROM
                 fx_event_bus.events_acknowledged
             WHERE
@@ -65,7 +70,8 @@ pub async fn get_event_unacknowledged(
                 id,
                 name,
                 hash,
-                payload
+                payload,
+                0 "attempted!:i32"
             FROM
                 fx_event_bus.events_unacknowledged
             WHERE

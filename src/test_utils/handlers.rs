@@ -2,6 +2,7 @@ use crate::{
     EventHandler, EventHandlingError, listener::listener::Listener,
     models::Event, test_utils::TestEvent,
 };
+use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use sqlx::{PgPool, PgTransaction};
 use std::sync::Arc;
@@ -56,6 +57,7 @@ impl EventHandler<TestEvent> for HandlerAlpha {
     fn handle<'a>(
         &'a self,
         _input: TestEvent,
+        _polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
     ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>
     {
@@ -99,6 +101,7 @@ impl EventHandler<TestEvent> for HandlerBeta {
     fn handle<'a>(
         &'a self,
         _input: TestEvent,
+        _polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
     ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>
     {
@@ -140,6 +143,7 @@ impl EventHandler<TestEvent> for HandlerGamma {
     fn handle<'a>(
         &'a self,
         _input: TestEvent,
+        _polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
     ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>
     {

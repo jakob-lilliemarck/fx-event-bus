@@ -1,6 +1,6 @@
 use super::poll_control::PollControlStream;
-use crate::{EventHandlerRegistry, RawEvent, models::EventResult};
-use chrono::Utc;
+use crate::{EventHandlerRegistry, RawEvent};
+use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use sqlx::{PgPool, postgres::PgListener};
 use std::time::Duration;
@@ -12,6 +12,8 @@ const EVENTS_CHANNEL: &str = "fx_event_bus";
 pub struct Listener {
     pool: PgPool,
     registry: EventHandlerRegistry,
+    max_attempts: i32,
+    retry_duration: Duration,
 }
 
 impl Listener {
@@ -19,7 +21,28 @@ impl Listener {
         pool: PgPool,
         registry: EventHandlerRegistry,
     ) -> Self {
-        Listener { pool, registry }
+        Listener {
+            pool,
+            registry,
+            max_attempts: 3,
+            retry_duration: Duration::from_millis(15_000),
+        }
+    }
+
+    pub fn with_max_attempts(
+        mut self,
+        max_attempts: u16,
+    ) -> Self {
+        self.max_attempts = max_attempts as i32;
+        self
+    }
+
+    pub fn with_retry_duration(
+        mut self,
+        retry_duration: Duration,
+    ) -> Self {
+        self.retry_duration = retry_duration;
+        self
     }
 
     // Uses PgNotify to listen for events and processes them
@@ -74,75 +97,48 @@ impl Listener {
     }
 
     pub async fn poll(&self) -> Result<bool, super::ListenerError> {
+        // Get the current time
+        let polled_at = Utc::now();
+
         // begin a transaction
         let mut tx = self.pool.begin().await?;
-        // use the transaction to call acknowledge
-        match Self::acknowledge(&mut tx).await? {
-            None => return Ok(false),
-            Some(event) => {
-                // keep the event id for later use
-                let id = event.id;
-                // use the transaction registry to handle the event
-                let (mut tx, result) = self.registry.handle(event, tx).await;
 
-                if let Err(error) = result {
-                    // if the handling failed, fail the event
-                    Self::insert_result(
-                        &mut tx,
-                        id,
-                        EventResult::Failed,
-                        Some(error.to_string()),
-                    )
-                    .await?;
-                } else {
-                    // otherwise succeed the event
-                    Self::insert_result(
-                        &mut tx,
-                        id,
-                        EventResult::Succeeded,
-                        None,
-                    )
-                    .await?;
-                }
-                // commit the transaction
-                tx.commit().await?;
-                return Ok(true);
-            }
-        }
-    }
+        // Try to get an event to handle
+        // Try unacknowledged events first, and retry secondary
+        let event = match Self::acknowledge(&mut tx).await? {
+            None => match Self::retry(&mut tx, polled_at).await? {
+                None => return Ok(false), // No events to handle
+                Some(event) => event,
+            },
+            Some(event) => event,
+        };
 
-    async fn insert_result<'tx>(
-        tx: &mut sqlx::PgTransaction<'tx>,
-        event_id: Uuid,
-        result: EventResult,
-        error_message: Option<String>,
-    ) -> Result<(), super::ListenerError> {
-        sqlx::query!(
-            r#"
-            INSERT INTO fx_event_bus.results (
-                id,
+        // keep the event id for later use
+        let event_id = event.id;
+
+        // keep the event attempted for later use
+        let attempted = event.attempted as u32;
+
+        // use the transaction registry to handle the event
+        let (mut tx, result) = self.registry.handle(event, polled_at, tx).await;
+
+        if let Err(error) = result {
+            // if the handling failed, fail the event
+            self.report_failure(
+                &mut tx,
                 event_id,
-                status,
-                processed_at,
-                error_message
-            ) VALUES (
-                $1,
-                $2,
-                $3::fx_event_bus.event_result,
-                $4,
-                $5
+                attempted + 1,
+                polled_at,
+                error.to_string(),
             )
-            "#,
-            Uuid::now_v7(),
-            event_id,
-            result as EventResult,
-            Utc::now(),
-            error_message
-        )
-        .execute(&mut **tx)
-        .await?;
-
-        Ok(())
+            .await?;
+        } else {
+            // otherwise succeed the event
+            self.report_success(&mut tx, event_id, polled_at).await?;
+        }
+        // commit the transaction
+        tx.commit().await?;
+        return Ok(true);
     }
 
     // uses FOR UPDATE SKIP LOCKED to acknowledge and return the next event
@@ -153,27 +149,174 @@ impl Listener {
         let acknowledged = sqlx::query_as!(
             RawEvent,
             r#"
-                WITH next_event AS (
-                    DELETE FROM fx_event_bus.events_unacknowledged
-                    WHERE id = (
-                        SELECT id
-                        FROM fx_event_bus.events_unacknowledged
-                        ORDER BY published_at ASC, id ASC
-                        FOR UPDATE SKIP LOCKED
-                        LIMIT 1
-                    )
-                    RETURNING *
+            WITH next_event AS (
+                DELETE FROM fx_event_bus.events_unacknowledged
+                WHERE id = (
+                    SELECT id
+                    FROM fx_event_bus.events_unacknowledged
+                    ORDER BY published_at ASC, id ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
                 )
-                INSERT INTO fx_event_bus.events_acknowledged
-                SELECT id, name, hash, payload, published_at, $1 as acknowledged_at
-                FROM next_event
-                RETURNING id, name, hash, payload;
+                RETURNING *
+            )
+            INSERT INTO fx_event_bus.events_acknowledged
+            SELECT
+                id,
+                name,
+                hash,
+                payload,
+                published_at,
+                $1 as acknowledged_at
+            FROM next_event
+            RETURNING
+                id,
+                name,
+                hash,
+                payload,
+                0::INTEGER "attempted!:i32"; -- always zero attempts when polling from unacknowledged
             "#,
             Utc::now(),
         )
         .fetch_optional(&mut **tx)
         .await?;
         Ok(acknowledged)
+    }
+
+    // uses FOR UPDATE SKIP LOCKED to update the attempted_at column and return the next event to retry
+    // process the event using the same transaction to ensure consistency
+    async fn retry<'tx>(
+        tx: &mut sqlx::PgTransaction<'tx>,
+        now: DateTime<Utc>,
+    ) -> Result<Option<RawEvent>, super::ListenerError> {
+        let retry = sqlx::query_as!(
+            RawEvent,
+            r#"
+            WITH claimed AS (
+                UPDATE fx_event_bus.attempts_failed
+                SET attempted_at = $1
+                WHERE id = (
+                    SELECT id
+                    FROM fx_event_bus.attempts_failed
+                    WHERE
+                        try_earliest <= $1
+                        AND attempted_at IS NULL
+                    ORDER BY try_earliest ASC, id ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                )
+                RETURNING event_id, attempted
+            )
+            SELECT
+                e.id,
+                e.name,
+                e.hash,
+                e.payload,
+                c.attempted
+            FROM fx_event_bus.events_acknowledged e
+            JOIN claimed c ON e.id = c.event_id
+            "#,
+            now
+        )
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        Ok(retry)
+    }
+
+    async fn report_success<'tx>(
+        &self,
+        tx: &mut sqlx::PgTransaction<'tx>,
+        event_id: Uuid,
+        attempted_at: DateTime<Utc>,
+    ) -> Result<(), super::ListenerError> {
+        sqlx::query!(
+            r#"
+            INSERT INTO fx_event_bus.attempts_succeeded (
+                event_id,
+                attempted_at
+            ) VALUES (
+                $1,
+                $2
+            )
+            "#,
+            event_id,
+            attempted_at
+        )
+        .execute(&mut **tx)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn report_failure<'tx>(
+        &self,
+        tx: &mut sqlx::PgTransaction<'tx>,
+        event_id: Uuid,
+        attempted: u32,
+        attempted_at: DateTime<Utc>,
+        error: String,
+    ) -> Result<(), super::ListenerError> {
+        let now = Utc::now();
+
+        if attempted as i32 >= self.max_attempts {
+            sqlx::query!(
+                r#"
+                WITH deleted_attempts AS (
+                    DELETE FROM fx_event_bus.attempts_failed
+                    WHERE event_id = $1
+                    RETURNING
+                        attempted_at,
+                        error,
+                        attempted
+                )
+                INSERT INTO fx_event_bus.attempts_dead (
+                    event_id,
+                    attempted_at,
+                    dead_at,
+                    errors
+                )
+                SELECT
+                    $1,
+                    array_agg(attempted_at ORDER BY attempted) || ARRAY[$2::TIMESTAMPTZ],
+                    $3,
+                    array_agg(error ORDER BY attempted) || ARRAY[$4]
+                FROM deleted_attempts
+                "#,
+                event_id,
+                attempted_at,
+                now,
+                error
+            )
+            .execute(&mut **tx)
+            .await?;
+        } else {
+            // Insert retry attempt
+            let try_earliest =
+                attempted_at + self.retry_duration * 2_u32.pow(attempted - 1);
+
+            sqlx::query!(
+                r#"
+                INSERT INTO fx_event_bus.attempts_failed (
+                    id,
+                    event_id,
+                    try_earliest,
+                    attempted,
+                    attempted_at,
+                    error
+                ) VALUES ($1, $2, $3, $4, NULL, $5)
+                "#,
+                Uuid::now_v7(),
+                event_id,
+                try_earliest,
+                attempted as i32,
+                error
+            )
+            .execute(&mut **tx)
+            .await?;
+        }
+
+        Ok(())
     }
 }
 
@@ -298,10 +441,11 @@ mod tests {
 
         // Assert that the event was acknowledged and moved to failed
         let event = get_event_failed(&pool, published.id).await?;
-        assert_eq!(event.id, published.id);
-        assert_eq!(event.name, published.name);
-        assert_eq!(event.hash, published.hash);
-        assert_eq!(event.payload, published.payload);
+        assert!(event.len() == 1);
+        assert_eq!(event[0].id, published.id);
+        assert_eq!(event[0].name, published.name);
+        assert_eq!(event[0].hash, published.hash);
+        assert_eq!(event[0].payload, published.payload);
         Ok(())
     }
 
@@ -353,10 +497,11 @@ mod tests {
 
         // Assert that the event was acknowledged and moved to failed
         let event = get_event_failed(&pool, published.id).await?;
-        assert_eq!(event.id, published.id);
-        assert_eq!(event.name, published.name);
-        assert_eq!(event.hash, published.hash);
-        assert_eq!(event.payload, published.payload);
+        assert!(event.len() == 1);
+        assert_eq!(event[0].id, published.id);
+        assert_eq!(event[0].name, published.name);
+        assert_eq!(event[0].hash, published.hash);
+        assert_eq!(event[0].payload, published.payload);
         Ok(())
     }
 
