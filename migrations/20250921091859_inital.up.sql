@@ -73,7 +73,13 @@ CREATE TABLE fx_event_bus.attempts_failed (
 
 -- Index for retry queue processing (using latest retry time)
 CREATE INDEX idx_attempts_failed_queue
-ON fx_event_bus.attempts_failed (try_earliest ASC, event_id ASC);
+ON fx_event_bus.attempts_failed (try_earliest ASC, id ASC)
+WHERE attempted_at IS NULL;
+
+-- Index for cleanup (using event_id)
+CREATE INDEX idx_attempts_failed_cleanup
+ON fx_event_bus.attempts_failed (event_id)
+WHERE attempted_at IS NOT NULL;
 
 -- Handling attempts that exhausted retries. The "dead letter queue"
 CREATE TABLE fx_event_bus.attempts_dead (
