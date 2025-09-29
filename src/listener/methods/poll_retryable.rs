@@ -17,31 +17,22 @@ impl Listener {
         let retry = sqlx::query_as!(
             RawEvent,
             r#"
-            WITH claimed AS (
-                UPDATE fx_event_bus.attempts_failed
-                SET attempted_at = $1
-                WHERE id = (
-                    SELECT id
-                    FROM fx_event_bus.attempts_failed
-                    WHERE
-                        try_earliest <= $1
-                        AND attempted_at IS NULL
-                    ORDER BY try_earliest ASC, id ASC
-                    FOR UPDATE SKIP LOCKED
-                    LIMIT 1
-                )
-                RETURNING event_id, attempted
-            )
-            SELECT
-                e.id,
-                e.name,
-                e.hash,
-                e.payload,
-                c.attempted
+            UPDATE fx_event_bus.attempts_failed f
+            SET attempted_at = $1
             FROM fx_event_bus.events_acknowledged e
-            JOIN claimed c ON e.id = c.event_id
+            WHERE f.event_id = e.id
+              AND f.id = (
+                SELECT af.id
+                FROM fx_event_bus.attempts_failed af
+                WHERE af.try_earliest <= $1
+                  AND af.attempted_at IS NULL
+                ORDER BY af.try_earliest ASC, af.id ASC
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1
+              )
+            RETURNING e.id, e.name, e.hash, e.payload, f.attempted
             "#,
-            now
+            now,
         )
         .fetch_optional(&mut **tx)
         .await?;

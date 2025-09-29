@@ -35,45 +35,47 @@ impl<'tx> Publisher<'tx> {
         &mut self,
         events: &[E],
     ) -> Result<(), super::PublisherError> {
-        let len = events.len();
-
-        if len == 0 {
+        if events.is_empty() {
             return Ok(());
         }
 
         let now = Utc::now();
-
-        let payloads = events
-            .iter()
-            .map(|event| {
-                serde_json::to_value(event).map_err(|error| {
-                    super::PublisherError::SerializationError {
-                        hash: E::HASH,
-                        name: E::NAME.to_string(),
-                        source: error,
-                    }
-                })
-            })
-            .collect::<Result<Vec<serde_json::Value>, super::PublisherError>>(
-            )?;
-
         let mut query_builder = sqlx::QueryBuilder::new(
             "INSERT INTO fx_event_bus.events_unacknowledged (
-                id,
-                name,
-                hash,
-                payload,
-                published_at
-            ) ",
+                id, name, hash, payload, published_at
+            ) VALUES ",
         );
 
-        query_builder.push_values(payloads, |mut b, payload| {
-            b.push_bind(Uuid::now_v7())
+        let mut first = true;
+        for event in events {
+            // Serialize on-demand, fail immediately on error
+            let payload = serde_json::to_value(event).map_err(|error| {
+                super::PublisherError::SerializationError {
+                    hash: E::HASH,
+                    name: E::NAME.to_string(),
+                    source: error,
+                }
+            })?;
+
+            if first {
+                first = false;
+            } else {
+                query_builder.push(", ");
+            }
+
+            query_builder
+                .push("(")
+                .push_bind(Uuid::now_v7())
+                .push(", ")
                 .push_bind(E::NAME)
+                .push(", ")
                 .push_bind(E::HASH)
+                .push(", ")
                 .push_bind(payload)
-                .push_bind(&now);
-        });
+                .push(", ")
+                .push_bind(&now)
+                .push(")");
+        }
 
         query_builder.build().execute(&mut *self.tx).await.map_err(
             |error| super::PublisherError::DatabaseError {
@@ -185,23 +187,33 @@ mod tests {
     ) -> anyhow::Result<()> {
         let tx = pool.begin().await?;
         let mut publisher = Publisher::new(tx);
-        publisher
-            .publish_many(&[
-                TestEvent {
-                    message: "testing testing".to_string(),
-                    value: 42,
-                },
-                TestEvent {
-                    message: "testing testing testing".to_string(),
-                    value: 43,
-                },
-            ])
-            .await?;
+        let events: Vec<TestEvent> = (0..100)
+            .map(|i| TestEvent {
+                message: "testing testing".to_string(),
+                value: i as i32,
+            })
+            .collect();
+        publisher.publish_many(&events).await?;
         let tx: PgTransaction<'_> = publisher.into();
         tx.commit().await?;
 
         let unacknowledged_events = get_unacknowledged_events(&pool).await?;
-        assert_eq!(unacknowledged_events, 2);
+        assert_eq!(unacknowledged_events, 100);
+
+        Ok(())
+    }
+
+    #[sqlx::test(migrations = "./migrations")]
+    async fn it_handles_empty_arrays(pool: sqlx::PgPool) -> anyhow::Result<()> {
+        let tx = pool.begin().await?;
+        let mut publisher = Publisher::new(tx);
+        let events: Vec<TestEvent> = Vec::new();
+        publisher.publish_many(&events).await?;
+        let tx: PgTransaction<'_> = publisher.into();
+        tx.commit().await?;
+
+        let unacknowledged_events = get_unacknowledged_events(&pool).await?;
+        assert_eq!(unacknowledged_events, 0);
 
         Ok(())
     }
