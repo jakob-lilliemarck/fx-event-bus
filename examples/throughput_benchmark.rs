@@ -4,6 +4,7 @@ use fx_event_bus::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, PgTransaction};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tabled::{Style, Table, Tabled};
 use textplots::{Chart, Plot, Shape};
@@ -30,7 +31,7 @@ impl EventHandler<ThroughputBenchmarkEvent> for ThroughputBenchmarkHandler {
 
     fn handle<'a>(
         &'a self,
-        _input: ThroughputBenchmarkEvent,
+        _input: Arc<ThroughputBenchmarkEvent>,
         _polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
     ) -> futures::future::BoxFuture<

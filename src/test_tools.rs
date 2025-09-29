@@ -3,6 +3,7 @@ use crate::listener::methods::listen::Handled;
 use crate::{Event, Listener};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::sync::Once;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -226,7 +227,7 @@ impl EventHandler<TestEvent> for FailingHandler {
 
     fn handle<'a>(
         &'a self,
-        _: TestEvent,
+        _: Arc<TestEvent>,
         _: DateTime<Utc>,
         tx: sqlx::PgTransaction<'a>,
     ) -> futures::future::BoxFuture<
@@ -251,7 +252,7 @@ impl EventHandler<TestEvent> for SucceedingHandler {
 
     fn handle<'a>(
         &'a self,
-        _: TestEvent,
+        _: Arc<TestEvent>,
         _: DateTime<Utc>,
         tx: sqlx::PgTransaction<'a>,
     ) -> futures::future::BoxFuture<

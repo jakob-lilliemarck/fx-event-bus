@@ -4,12 +4,13 @@ use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use sqlx::PgTransaction;
 use std::any::Any;
+use std::sync::Arc;
 
 // Type-erased trait for handlers that can return different error types
 trait ErasedEventHandler<E: Event>: Send + Sync {
     fn handle_erased<'a>(
         &'a self,
-        input: E,
+        input: Arc<E>,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
     ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), String>)>;
@@ -19,7 +20,7 @@ trait ErasedEventHandler<E: Event>: Send + Sync {
 impl<E: Event, H: EventHandler<E>> ErasedEventHandler<E> for H {
     fn handle_erased<'a>(
         &'a self,
-        input: E,
+        input: Arc<E>,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
     ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), String>)> {
@@ -65,28 +66,31 @@ pub trait HandlerGroup: Send + Sync + Any {
     ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), String>)>;
 }
 
-impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
+impl<E: Event + Clone + Sync + 'static> HandlerGroup for Group<E> {
     fn handle<'tx>(
         &'tx self,
         event: &RawEvent,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'tx>,
     ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), String>)> {
-        let event = event.clone();
+        // Only clone the payload for deserialization
+        let payload = event.payload.clone();
         Box::pin(async move {
-            let typed: E = match serde_json::from_value(event.payload) {
+            let typed: E = match serde_json::from_value(payload) {
                 Ok(typed) => typed,
                 Err(err) => {
                     return (tx, Err(err.to_string()));
                 }
             };
 
+            // Wrap in Arc for cheap sharing across handlers
+            let typed = Arc::new(typed);
             let mut current_tx = tx;
             let mut result = Ok(());
 
             for handler in &self.handlers {
                 let (returned_tx, handler_result) = handler
-                    .handle_erased(typed.clone(), polled_at, current_tx)
+                    .handle_erased(Arc::clone(&typed), polled_at, current_tx)
                     .await;
                 current_tx = returned_tx;
 
