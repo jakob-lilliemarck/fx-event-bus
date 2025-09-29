@@ -4,7 +4,7 @@ use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
 /// Event trait for type-safe event publishing and deserialization
-pub trait Event: Serialize + DeserializeOwned + Clone + Send + 'static {
+pub trait Event: Serialize + DeserializeOwned + Clone + Send + Sync + 'static {
     /// The event name for this event type
     const NAME: &'static str;
     /// Compile-time hash of the event name, used to improve lookup speed

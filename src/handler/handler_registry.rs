@@ -28,7 +28,7 @@ impl EventHandlerRegistry {
         &mut self,
         handler: H,
     ) where
-        E: Event + Clone + Sync,
+        E: Event + Clone,
         H: EventHandler<E> + 'static,
     {
         // Get or create the group

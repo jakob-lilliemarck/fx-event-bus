@@ -66,7 +66,7 @@ pub trait HandlerGroup: Send + Sync + Any {
     ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), String>)>;
 }
 
-impl<E: Event + Clone + Sync + 'static> HandlerGroup for Group<E> {
+impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
     fn handle<'tx>(
         &'tx self,
         event: &RawEvent,

@@ -109,6 +109,8 @@ impl<'tx> Publisher<'tx> {
             }
         })?;
 
+        let now = Utc::now();
+        
         // Publish the event
         let published = sqlx::query_as!(
             RawEvent,
@@ -132,7 +134,7 @@ impl<'tx> Publisher<'tx> {
             E::NAME,
             E::HASH,
             payload,
-            Utc::now()
+            now
         )
         .fetch_one(&mut *self.tx)
         .await
