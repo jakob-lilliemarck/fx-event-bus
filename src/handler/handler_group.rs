@@ -6,8 +6,37 @@ use futures::future::BoxFuture;
 use sqlx::PgTransaction;
 use std::any::Any;
 
+// Type-erased trait for handlers that can return different error types
+trait ErasedEventHandler<E: Event>: Send + Sync {
+    fn handle_erased<'a>(
+        &'a self,
+        input: E,
+        polled_at: DateTime<Utc>,
+        tx: PgTransaction<'a>,
+    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>;
+}
+
+// Blanket implementation that converts any EventHandler to ErasedEventHandler
+impl<E: Event, H: EventHandler<E>> ErasedEventHandler<E> for H {
+    fn handle_erased<'a>(
+        &'a self,
+        input: E,
+        polled_at: DateTime<Utc>,
+        tx: PgTransaction<'a>,
+    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>
+    {
+        let fut = self.handle(input, polled_at, tx);
+        Box::pin(async move {
+            let (tx, result) = fut.await;
+            let converted_result = result
+                .map_err(|err| EventHandlingError::HandlerError(Box::new(err)));
+            (tx, converted_result)
+        })
+    }
+}
+
 pub struct Group<E: Event> {
-    handlers: Vec<Box<dyn EventHandler<E>>>,
+    handlers: Vec<Box<dyn ErasedEventHandler<E>>>,
 }
 
 impl<E: Event + Clone> Group<E> {
@@ -60,8 +89,9 @@ impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
             let mut result = Ok(());
 
             for handler in &self.handlers {
-                let (returned_tx, handler_result) =
-                    handler.handle(typed.clone(), polled_at, current_tx).await;
+                let (returned_tx, handler_result) = handler
+                    .handle_erased(typed.clone(), polled_at, current_tx)
+                    .await;
                 current_tx = returned_tx;
 
                 if let Err(err) = handler_result {

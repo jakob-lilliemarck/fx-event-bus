@@ -17,9 +17,17 @@ impl Event for ThroughputBenchmarkEvent {
     const NAME: &'static str = "ThroughputBenchmarkEvent";
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("Test error: {message}")]
+pub struct TestError {
+    message: String,
+}
+
 struct ThroughputBenchmarkHandler;
 
 impl EventHandler<ThroughputBenchmarkEvent> for ThroughputBenchmarkHandler {
+    type Error = TestError;
+
     fn handle<'a>(
         &'a self,
         _input: ThroughputBenchmarkEvent,
@@ -27,10 +35,7 @@ impl EventHandler<ThroughputBenchmarkEvent> for ThroughputBenchmarkHandler {
         tx: PgTransaction<'a>,
     ) -> futures::future::BoxFuture<
         'a,
-        (
-            PgTransaction<'a>,
-            Result<(), fx_event_bus::EventHandlingError>,
-        ),
+        (PgTransaction<'a>, Result<(), TestError>),
     > {
         Box::pin(async move { (tx, Ok(())) })
     }

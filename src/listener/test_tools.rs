@@ -1,6 +1,6 @@
+use crate::EventHandler;
 use crate::listener::methods::listen::Handled;
 use crate::{Event, listener::listener::Listener};
-use crate::{EventHandler, EventHandlingError};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Once;
@@ -190,11 +190,13 @@ pub struct FailingHandler;
 
 #[derive(Debug, thiserror::Error)]
 #[error("Test error: {message}")]
-struct TestError {
+pub struct TestError {
     message: String,
 }
 
 impl EventHandler<TestEvent> for FailingHandler {
+    type Error = TestError;
+
     fn handle<'a>(
         &'a self,
         _: TestEvent,
@@ -202,14 +204,14 @@ impl EventHandler<TestEvent> for FailingHandler {
         tx: sqlx::PgTransaction<'a>,
     ) -> futures::future::BoxFuture<
         'a,
-        (sqlx::PgTransaction<'a>, Result<(), EventHandlingError>),
+        (sqlx::PgTransaction<'a>, Result<(), Self::Error>),
     > {
         Box::pin(async move {
             (
                 tx,
-                Err(EventHandlingError::HandlerError(Box::new(TestError {
+                Err(TestError {
                     message: "error".to_string(),
-                }))),
+                }),
             )
         })
     }
@@ -218,6 +220,8 @@ impl EventHandler<TestEvent> for FailingHandler {
 pub struct SucceedingHandler;
 
 impl EventHandler<TestEvent> for SucceedingHandler {
+    type Error = std::convert::Infallible;
+
     fn handle<'a>(
         &'a self,
         _: TestEvent,
@@ -225,10 +229,7 @@ impl EventHandler<TestEvent> for SucceedingHandler {
         tx: sqlx::PgTransaction<'a>,
     ) -> futures::future::BoxFuture<
         'a,
-        (
-            sqlx::PgTransaction<'a>,
-            Result<(), crate::EventHandlingError>,
-        ),
+        (sqlx::PgTransaction<'a>, Result<(), Self::Error>),
     > {
         Box::pin(async move { (tx, Ok(())) })
     }
