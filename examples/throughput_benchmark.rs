@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use fx_event_bus::{
-    Event, EventHandler, EventHandlerRegistry, Publisher,
-    listener::listener::Listener,
+    Event, EventHandler, EventHandlerRegistry, Publisher, listener::Listener,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, PgTransaction};
@@ -138,7 +137,7 @@ impl Bencher {
     async fn measure(&mut self) -> anyhow::Result<Duration> {
         let now = Instant::now();
         for _ in 0..1000 {
-            self.listener.poll().await?;
+            self.listener.poll(Utc::now()).await?;
         }
         Ok(now.elapsed())
     }

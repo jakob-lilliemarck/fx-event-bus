@@ -1,4 +1,4 @@
-use crate::{Event, FromOther, RawEvent};
+use crate::{Event, RawEvent};
 use chrono::Utc;
 use sqlx::PgTransaction;
 use uuid::Uuid;
@@ -17,17 +17,6 @@ impl<'tx> Publisher<'tx> {
 impl<'tx> Into<PgTransaction<'tx>> for Publisher<'tx> {
     fn into(self) -> PgTransaction<'tx> {
         self.tx
-    }
-}
-
-impl<'tx> FromOther<'tx> for Publisher<'tx> {
-    type TxType = Publisher<'tx>;
-
-    fn from(
-        &self,
-        other: impl Into<PgTransaction<'tx>>,
-    ) -> Self::TxType {
-        Self::new(other.into())
     }
 }
 

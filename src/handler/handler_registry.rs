@@ -42,7 +42,7 @@ impl EventHandlerRegistry {
 
     pub async fn handle<'tx>(
         &'tx self,
-        event: RawEvent,
+        event: &RawEvent,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'tx>,
     ) -> (PgTransaction<'tx>, Result<(), EventHandlingError>) {

@@ -1,4 +1,3 @@
-pub mod chainable;
 pub mod handler;
 pub mod listener;
 pub mod migrations;
@@ -9,7 +8,6 @@ pub mod publisher;
 pub mod test_utils;
 
 // Re-export commonly used types
-pub use chainable::FromOther;
 pub use handler::{EventHandler, EventHandlerRegistry, EventHandlingError};
 pub use migrations::run_migrations;
 pub use models::{Event, RawEvent};

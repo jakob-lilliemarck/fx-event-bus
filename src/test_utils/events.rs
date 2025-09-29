@@ -9,5 +9,5 @@ pub struct TestEvent {
 }
 
 impl Event for TestEvent {
-    const NAME: &'static str = "alpha";
+    const NAME: &'static str = "test";
 }

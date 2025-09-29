@@ -30,7 +30,7 @@ impl<E: Event + Clone> Group<E> {
 pub trait HandlerGroup: Send + Sync + Any {
     fn handle<'tx>(
         &'tx self,
-        event: RawEvent,
+        event: &RawEvent,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'tx>,
     ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), EventHandlingError>)>;
@@ -39,11 +39,12 @@ pub trait HandlerGroup: Send + Sync + Any {
 impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
     fn handle<'tx>(
         &'tx self,
-        event: RawEvent,
+        event: &RawEvent,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'tx>,
     ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), EventHandlingError>)>
     {
+        let event = event.clone();
         Box::pin(async move {
             let typed: E = match serde_json::from_value(event.payload) {
                 Ok(typed) => typed,

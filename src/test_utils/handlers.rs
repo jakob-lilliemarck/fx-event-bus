@@ -1,6 +1,6 @@
 use crate::{
-    EventHandler, EventHandlingError, listener::listener::Listener,
-    models::Event, test_utils::TestEvent,
+    EventHandler, EventHandlingError, listener::Listener, models::Event,
+    test_utils::TestEvent,
 };
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
