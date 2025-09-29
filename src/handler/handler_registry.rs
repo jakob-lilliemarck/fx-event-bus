@@ -1,4 +1,4 @@
-use super::EventHandlingError;
+use super::errors::EventHandlingError;
 use super::handler_group::{Group, HandlerGroup};
 use crate::{Event, EventHandler, models::RawEvent};
 use chrono::{DateTime, Utc};
@@ -10,12 +10,21 @@ pub struct EventHandlerRegistry {
 }
 
 impl EventHandlerRegistry {
+    #[tracing::instrument(level = "debug")]
     pub fn new() -> EventHandlerRegistry {
         Self {
             handlers: HashMap::new(),
         }
     }
 
+    #[tracing::instrument(
+        skip(self, handler),
+        fields(
+            event_name = E::NAME,
+            event_hash = E::HASH
+        ),
+        level = "debug"
+    )]
     pub fn with_handler<E, H>(
         &mut self,
         handler: H,
@@ -40,6 +49,15 @@ impl EventHandlerRegistry {
         group.register(handler);
     }
 
+    #[tracing::instrument(
+        skip(self, event, tx),
+        fields(
+            event_id = %event.id,
+            event_name = event.name,
+            event_hash = event.hash,
+            polled_at = %polled_at
+        )
+    )]
     pub async fn handle<'tx>(
         &'tx self,
         event: &RawEvent,

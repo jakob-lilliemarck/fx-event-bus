@@ -9,6 +9,7 @@ pub struct Publisher<'tx> {
 
 impl<'tx> Publisher<'tx> {
     /// Create a new Publisher from a database transaction.
+    #[tracing::instrument(skip(tx), level = "debug")]
     pub fn new(tx: PgTransaction<'tx>) -> Self {
         Self { tx }
     }
@@ -21,6 +22,15 @@ impl<'tx> Into<PgTransaction<'tx>> for Publisher<'tx> {
 }
 
 impl<'tx> Publisher<'tx> {
+    #[tracing::instrument(
+        skip(self, events),
+        fields(
+            event_name = E::NAME,
+            event_hash = E::HASH,
+            count = events.len()
+        ),
+        err
+    )]
     pub async fn publish_many<E: Event>(
         &mut self,
         events: &[E],
@@ -76,6 +86,14 @@ impl<'tx> Publisher<'tx> {
         Ok(())
     }
 
+    #[tracing::instrument(
+        skip(self, event),
+        fields(
+            event_name = E::NAME,
+            event_hash = E::HASH
+        ),
+        err
+    )]
     pub async fn publish<E: Event>(
         &mut self,
         event: E,

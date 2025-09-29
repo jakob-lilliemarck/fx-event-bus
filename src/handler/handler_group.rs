@@ -40,12 +40,14 @@ pub struct Group<E: Event> {
 }
 
 impl<E: Event + Clone> Group<E> {
+    #[tracing::instrument(level = "debug")]
     pub fn new() -> Self {
         Self {
             handlers: Vec::new(),
         }
     }
 
+    #[tracing::instrument(skip(self, handler), level = "debug")]
     pub fn register<H>(
         &mut self,
         handler: H,

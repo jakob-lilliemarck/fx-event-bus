@@ -3,6 +3,15 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 impl Listener {
+    #[tracing::instrument(
+        skip(self),
+        fields(
+            now = %now,
+            max_attempts = self.max_attempts,
+            retry_duration_ms = self.retry_duration.as_millis()
+        ),
+        err
+    )]
     pub async fn poll(
         &self,
         now: DateTime<Utc>,

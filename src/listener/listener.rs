@@ -16,6 +16,11 @@ pub struct Listener {
 }
 
 impl Listener {
+    #[tracing::instrument(
+        skip(pool, registry),
+        fields(max_attempts = 3, retry_duration_ms = 15_000),
+        level = "debug"
+    )]
     pub fn new(
         pool: PgPool,
         registry: EventHandlerRegistry,
@@ -29,6 +34,11 @@ impl Listener {
         }
     }
 
+    #[tracing::instrument(
+        skip(self),
+        fields(max_attempts = max_attempts),
+        level = "debug"
+    )]
     pub fn with_max_attempts(
         mut self,
         max_attempts: u16,
@@ -37,6 +47,11 @@ impl Listener {
         self
     }
 
+    #[tracing::instrument(
+        skip(self),
+        fields(retry_duration_ms = retry_duration.as_millis()),
+        level = "debug"
+    )]
     pub fn with_retry_duration(
         mut self,
         retry_duration: Duration,

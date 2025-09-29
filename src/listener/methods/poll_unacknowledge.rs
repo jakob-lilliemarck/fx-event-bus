@@ -7,6 +7,11 @@ use super::super::{Listener, ListenerError};
 impl Listener {
     // uses FOR UPDATE SKIP LOCKED to acknowledge and return the next event
     // process the event using the same transaction to ensure consistency
+    #[tracing::instrument(
+        skip(tx),
+        fields(now = %now),
+        err
+    )]
     pub(super) async fn poll_unacknowledged<'tx>(
         tx: &mut sqlx::PgTransaction<'tx>,
         now: DateTime<Utc>,

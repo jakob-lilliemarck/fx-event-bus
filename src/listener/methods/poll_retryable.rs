@@ -5,6 +5,11 @@ use chrono::{DateTime, Utc};
 impl Listener {
     // uses FOR UPDATE SKIP LOCKED to update the attempted_at column and return the next event to retry
     // process the event using the same transaction to ensure consistency
+    #[tracing::instrument(
+        skip(tx),
+        fields(now = %now),
+        err
+    )]
     pub async fn poll_retryable<'tx>(
         tx: &mut sqlx::PgTransaction<'tx>,
         now: DateTime<Utc>,

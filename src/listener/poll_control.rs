@@ -22,6 +22,13 @@ pub struct PollControlStream {
 }
 
 impl PollControlStream {
+    #[tracing::instrument(
+        fields(
+            duration_ms = duration.as_millis(),
+            duration_max_ms = duration_max.as_millis()
+        ),
+        level = "debug"
+    )]
     pub fn new(
         duration: Duration,
         duration_max: Duration,
@@ -36,6 +43,7 @@ impl PollControlStream {
         }
     }
 
+    #[tracing::instrument(skip(self, pg_stream), level = "debug")]
     pub fn with_pg_stream(
         &mut self,
         pg_stream: impl Stream<
@@ -47,18 +55,30 @@ impl PollControlStream {
         self.pg_stream = Some(Box::pin(pg_stream))
     }
 
+    #[tracing::instrument(
+        skip(self),
+        fields(failed_attempts = self.failed_attempts + 1),
+        level = "debug"
+    )]
     pub fn increment_failed_attempts(&mut self) {
         self.failed_attempts += 1;
     }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     pub fn reset_failed_attempts(&mut self) {
         self.failed_attempts = 0;
     }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     pub fn set_poll(&mut self) {
         self.poll = true
     }
 
+    #[tracing::instrument(
+        skip(cx),
+        fields(duration_ms = duration.as_millis()),
+        level = "debug"
+    )]
     fn wake_in(
         cx: &mut Context<'_>,
         duration: Duration,
@@ -70,6 +90,15 @@ impl PollControlStream {
         });
     }
 
+    #[tracing::instrument(
+        skip(self),
+        fields(
+            failed_attempts = self.failed_attempts,
+            base_duration_ms = self.duration.as_millis(),
+            max_duration_ms = self.duration_max.as_millis()
+        ),
+        level = "debug"
+    )]
     fn backoff(&self) -> Duration {
         let backoff = self.duration * 2_u32.pow(self.failed_attempts);
         backoff.min(self.duration_max)

@@ -4,6 +4,14 @@ use uuid::Uuid;
 use super::super::{Listener, ListenerError};
 
 impl Listener {
+    #[tracing::instrument(
+        skip(self, tx),
+        fields(
+            event_id = %event_id,
+            attempted_at = %attempted_at
+        ),
+        err
+    )]
     pub(super) async fn report_success<'tx>(
         &self,
         tx: &mut sqlx::PgTransaction<'tx>,

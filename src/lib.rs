@@ -5,7 +5,7 @@ pub mod models;
 pub mod publisher;
 
 // Re-export commonly used types
-pub use handler::{EventHandler, EventHandlerRegistry, EventHandlingError};
+pub use handler::{EventHandler, EventHandlerRegistry};
 pub use migrations::run_migrations;
 pub use models::{Event, RawEvent};
 pub use publisher::Publisher;

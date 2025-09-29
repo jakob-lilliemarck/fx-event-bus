@@ -4,6 +4,15 @@ use uuid::Uuid;
 use super::super::{Listener, ListenerError};
 
 impl Listener {
+    #[tracing::instrument(
+        skip(self),
+        fields(
+            attempted_at = %attempted_at,
+            attempted = attempted,
+            retry_duration_ms = self.retry_duration.as_millis()
+        ),
+        level = "debug"
+    )]
     fn try_earliest(
         &self,
         attempted_at: DateTime<Utc>,
@@ -12,6 +21,17 @@ impl Listener {
         attempted_at + self.retry_duration * 2_u32.pow(attempted - 1)
     }
 
+    #[tracing::instrument(
+        skip(self, tx),
+        fields(
+            event_id = %event_id,
+            attempted = attempted,
+            attempted_at = %attempted_at,
+            error = error,
+            max_attempts = self.max_attempts
+        ),
+        err
+    )]
     pub(super) async fn report_failure<'tx>(
         &self,
         tx: &mut sqlx::PgTransaction<'tx>,
