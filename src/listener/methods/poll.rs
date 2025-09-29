@@ -55,56 +55,13 @@ mod tests {
 
     use super::super::super::test_tools::{TestEvent, init_tracing};
     use super::*;
+    use crate::EventHandlerRegistry;
     use crate::listener::test_tools::{
-        is_acknowledged, is_dead, is_failed, is_succeeded, is_unacknowledged,
+        FailingHandler, SucceedingHandler, is_acknowledged, is_dead, is_failed,
+        is_succeeded, is_unacknowledged,
     };
-    use crate::{EventHandler, EventHandlerRegistry, EventHandlingError};
     use std::time::Duration;
 
-    struct FailingHandler;
-
-    impl EventHandler<TestEvent> for FailingHandler {
-        fn handle<'a>(
-            &'a self,
-            _: TestEvent,
-            _: DateTime<Utc>,
-            tx: sqlx::PgTransaction<'a>,
-        ) -> futures::future::BoxFuture<
-            'a,
-            (
-                sqlx::PgTransaction<'a>,
-                Result<(), crate::EventHandlingError>,
-            ),
-        > {
-            Box::pin(async move {
-                (
-                    tx,
-                    Err(EventHandlingError::BusinessLogicError(
-                        "err".to_string(),
-                    )),
-                )
-            })
-        }
-    }
-
-    struct SuccessHandler;
-
-    impl EventHandler<TestEvent> for SuccessHandler {
-        fn handle<'a>(
-            &'a self,
-            _: TestEvent,
-            _: DateTime<Utc>,
-            tx: sqlx::PgTransaction<'a>,
-        ) -> futures::future::BoxFuture<
-            'a,
-            (
-                sqlx::PgTransaction<'a>,
-                Result<(), crate::EventHandlingError>,
-            ),
-        > {
-            Box::pin(async move { (tx, Ok(())) })
-        }
-    }
     // Also assert it returns true on successful handling
     #[sqlx::test(migrations = "./migrations")]
     async fn it_prioritizes_unacknowledged_events(
@@ -270,7 +227,7 @@ mod tests {
         let mut registry = EventHandlerRegistry::new();
 
         // Register the succeeding handler
-        registry.with_handler(SuccessHandler);
+        registry.with_handler(SucceedingHandler);
 
         let listener = Listener::new(pool.clone(), registry)
             .with_max_attempts(2)

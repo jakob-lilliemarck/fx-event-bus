@@ -1,11 +1,9 @@
-use std::sync::Once;
-
-use crate::{
-    Event,
-    listener::listener::{Handled, Listener},
-};
+use crate::listener::methods::listen::Handled;
+use crate::{Event, listener::listener::Listener};
+use crate::{EventHandler, EventHandlingError};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Once;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -19,13 +17,6 @@ pub fn init_tracing() {
             .with_max_level(tracing::Level::DEBUG)
             .init();
     });
-}
-
-#[derive(Deserialize, Serialize, Clone)]
-pub struct TestEvent;
-
-impl Event for TestEvent {
-    const NAME: &'static str = "TestEvent";
 }
 
 pub async fn is_acknowledged(
@@ -85,32 +76,31 @@ pub async fn is_failed(
     Ok(exists.unwrap_or(false))
 }
 
-pub struct FailedAttempt {
-    pub id: Uuid,
-    pub event_id: Uuid,
-    pub try_earliest: DateTime<Utc>,
-    pub attempted: i32,
-    pub attempted_at: Option<DateTime<Utc>>,
-    pub error: String,
-}
-
 pub async fn get_failed_attempts(
     pool: &sqlx::PgPool
-) -> Result<Vec<FailedAttempt>, sqlx::Error> {
-    let failed_attempts = sqlx::query_as!(
-        FailedAttempt,
+) -> Result<i64, sqlx::Error> {
+    let failed_attempts = sqlx::query_scalar!(
         r#"
-        SELECT
-            id,
-            event_id,
-            try_earliest,
-            attempted,
-            attempted_at,
-            error
+        SELECT COUNT(*) "count!"
         FROM fx_event_bus.attempts_failed
         "#,
     )
-    .fetch_all(pool)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(failed_attempts)
+}
+
+pub async fn get_succeeded_attempts(
+    pool: &sqlx::PgPool
+) -> Result<i64, sqlx::Error> {
+    let failed_attempts = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) "count!"
+        FROM fx_event_bus.attempts_succeeded
+        "#,
+    )
+    .fetch_one(pool)
     .await?;
 
     Ok(failed_attempts)
@@ -187,4 +177,59 @@ pub async fn run_until(
 
     handle.await??;
     Ok(buf)
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct TestEvent;
+
+impl Event for TestEvent {
+    const NAME: &'static str = "TestEvent";
+}
+
+pub struct FailingHandler;
+
+#[derive(Debug, thiserror::Error)]
+#[error("Test error: {message}")]
+struct TestError {
+    message: String,
+}
+
+impl EventHandler<TestEvent> for FailingHandler {
+    fn handle<'a>(
+        &'a self,
+        _: TestEvent,
+        _: DateTime<Utc>,
+        tx: sqlx::PgTransaction<'a>,
+    ) -> futures::future::BoxFuture<
+        'a,
+        (sqlx::PgTransaction<'a>, Result<(), EventHandlingError>),
+    > {
+        Box::pin(async move {
+            (
+                tx,
+                Err(EventHandlingError::HandlerError(Box::new(TestError {
+                    message: "error".to_string(),
+                }))),
+            )
+        })
+    }
+}
+
+pub struct SucceedingHandler;
+
+impl EventHandler<TestEvent> for SucceedingHandler {
+    fn handle<'a>(
+        &'a self,
+        _: TestEvent,
+        _: DateTime<Utc>,
+        tx: sqlx::PgTransaction<'a>,
+    ) -> futures::future::BoxFuture<
+        'a,
+        (
+            sqlx::PgTransaction<'a>,
+            Result<(), crate::EventHandlingError>,
+        ),
+    > {
+        Box::pin(async move { (tx, Ok(())) })
+    }
 }

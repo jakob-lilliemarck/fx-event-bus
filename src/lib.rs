@@ -4,9 +4,6 @@ pub mod migrations;
 pub mod models;
 pub mod publisher;
 
-#[cfg(test)]
-pub mod test_utils;
-
 // Re-export commonly used types
 pub use handler::{EventHandler, EventHandlerRegistry, EventHandlingError};
 pub use migrations::run_migrations;

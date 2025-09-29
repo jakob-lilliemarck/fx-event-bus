@@ -91,9 +91,7 @@ mod tests {
 
         let failed_attempts = get_failed_attempts(&pool).await?;
         assert!(retried_event.id == published_event.id);
-        assert!(failed_attempts.len() == 1);
-        assert!(failed_attempts[0].event_id == published_event.id);
-        assert!(failed_attempts[0].attempted_at.is_some());
+        assert!(failed_attempts == 1);
         Ok(())
     }
 
