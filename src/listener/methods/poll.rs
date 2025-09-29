@@ -60,15 +60,14 @@ impl Listener {
 
 #[cfg(test)]
 mod tests {
-    use sqlx::PgTransaction;
-
-    use super::super::super::test_tools::{TestEvent, init_tracing};
     use super::*;
     use crate::EventHandlerRegistry;
-    use crate::listener::test_tools::{
+    use crate::test_tools::{
         FailingHandler, SucceedingHandler, is_acknowledged, is_dead, is_failed,
         is_succeeded, is_unacknowledged,
     };
+    use crate::test_tools::{TestEvent, init_tracing};
+    use sqlx::PgTransaction;
     use std::time::Duration;
 
     // Also assert it returns true on successful handling
@@ -81,8 +80,8 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        let _event_1 = publisher.publish(TestEvent).await?;
-        let event_2 = publisher.publish(TestEvent).await?;
+        let _event_1 = publisher.publish(TestEvent::default()).await?;
+        let event_2 = publisher.publish(TestEvent::default()).await?;
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         // acknowledge the first event
@@ -127,7 +126,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        publisher.publish(TestEvent).await?;
+        publisher.publish(TestEvent::default()).await?;
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         // acknowledge the event
@@ -188,7 +187,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent).await?;
+        let published_event = publisher.publish(TestEvent::default()).await?;
         let tx: PgTransaction<'_> = publisher.into();
         tx.commit().await?;
 
@@ -228,7 +227,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent).await?;
+        let published_event = publisher.publish(TestEvent::default()).await?;
         let tx: PgTransaction<'_> = publisher.into();
         tx.commit().await?;
 

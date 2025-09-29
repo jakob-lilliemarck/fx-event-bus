@@ -1,8 +1,6 @@
+use crate::models::RawEvent;
+use crate::{Listener, ListenerError};
 use chrono::{DateTime, Utc};
-
-use crate::RawEvent;
-
-use super::super::{Listener, ListenerError};
 
 impl Listener {
     // uses FOR UPDATE SKIP LOCKED to acknowledge and return the next event
@@ -56,11 +54,11 @@ impl Listener {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::test_tools::{
+    use super::*;
+    use crate::test_tools::{
         TestEvent, init_tracing, is_acknowledged, is_dead, is_failed,
         is_succeeded, is_unacknowledged,
     };
-    use super::*;
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_returns_acknowledged_events(
@@ -70,7 +68,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent).await?;
+        let published_event = publisher.publish(TestEvent::default()).await?;
         let mut tx: sqlx::PgTransaction = publisher.into();
 
         let acked_event = Listener::poll_unacknowledged(&mut tx, Utc::now())
@@ -103,7 +101,7 @@ mod tests {
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
         for _ in 0..events {
-            publisher.publish(TestEvent).await.map(|event| {
+            publisher.publish(TestEvent::default()).await.map(|event| {
                 event_ids.push(event.id);
             })?;
         }
@@ -138,7 +136,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent).await?;
+        let published_event = publisher.publish(TestEvent::default()).await?;
         let mut tx: sqlx::PgTransaction = publisher.into();
 
         let acked_event = Listener::poll_unacknowledged(&mut tx, Utc::now())

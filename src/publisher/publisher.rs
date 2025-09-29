@@ -1,4 +1,4 @@
-use crate::{Event, RawEvent};
+use crate::{Event, models::RawEvent};
 use chrono::Utc;
 use sqlx::PgTransaction;
 use uuid::Uuid;
@@ -146,24 +146,17 @@ impl<'tx> Publisher<'tx> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
-    use crate::Event;
-    use serde::{Deserialize, Serialize};
-
-    // Test event for our tests
-    #[derive(Clone, Debug, Serialize, Deserialize)]
-    struct TestEvent {
-        message: String,
-        value: i32,
-    }
-
-    impl Event for TestEvent {
-        const NAME: &'static str = "test_event";
-        const HASH: i32 = 12345;
-    }
+    use crate::{
+        Event,
+        test_tools::{TestEvent, get_unacknowledged_events},
+    };
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_publishes_evens(pool: sqlx::PgPool) -> anyhow::Result<()> {
+    async fn it_publishes_single_events(
+        pool: sqlx::PgPool
+    ) -> anyhow::Result<()> {
         let tx = pool.begin().await?;
         let mut publisher = Publisher::new(tx);
 
@@ -192,23 +185,23 @@ mod tests {
     ) -> anyhow::Result<()> {
         let tx = pool.begin().await?;
         let mut publisher = Publisher::new(tx);
-
-        let published = publisher
-            .publish(TestEvent {
-                message: "testing testing".to_string(),
-                value: 42,
-            })
+        publisher
+            .publish_many(&[
+                TestEvent {
+                    message: "testing testing".to_string(),
+                    value: 42,
+                },
+                TestEvent {
+                    message: "testing testing testing".to_string(),
+                    value: 43,
+                },
+            ])
             .await?;
+        let tx: PgTransaction<'_> = publisher.into();
+        tx.commit().await?;
 
-        assert_eq!(published.hash, TestEvent::HASH);
-        assert_eq!(published.name, TestEvent::NAME);
-        assert_eq!(
-            published.payload,
-            serde_json::json!({
-                "message": "testing testing",
-                "value": 42
-            })
-        );
+        let unacknowledged_events = get_unacknowledged_events(&pool).await?;
+        assert_eq!(unacknowledged_events, 2);
 
         Ok(())
     }

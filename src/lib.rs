@@ -1,11 +1,14 @@
-pub mod handler;
-pub mod listener;
-pub mod migrations;
-pub mod models;
-pub mod publisher;
+mod handler;
+mod listener;
+mod migrations;
+mod models;
+mod publisher;
 
-// Re-export commonly used types
+#[cfg(test)]
+mod test_tools;
+
 pub use handler::{EventHandler, EventHandlerRegistry};
+pub use listener::{Listener, ListenerError};
 pub use migrations::run_migrations;
 pub use models::{Event, RawEvent};
-pub use publisher::Publisher;
+pub use publisher::{Publisher, PublisherError};

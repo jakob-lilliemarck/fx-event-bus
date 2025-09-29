@@ -87,23 +87,15 @@ impl Listener {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
+    use crate::test_tools::{
+        FailingHandler, SucceedingHandler, TestEvent, get_failed_attempts,
+        get_succeeded_attempts, init_tracing, run_until,
+    };
+    use crate::{EventHandlerRegistry, Publisher, listener::Listener};
     use chrono::Utc;
     use sqlx::PgTransaction;
+    use std::time::Duration;
     use uuid::Uuid;
-
-    use crate::{
-        EventHandlerRegistry, Publisher,
-        listener::{
-            Listener,
-            test_tools::{
-                FailingHandler, SucceedingHandler, TestEvent,
-                get_failed_attempts, get_succeeded_attempts, init_tracing,
-                run_until,
-            },
-        },
-    };
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_handles_an_unacknowledged_event(
@@ -113,7 +105,7 @@ mod tests {
         let tx = pool.begin().await?;
 
         let mut publisher = Publisher::new(tx);
-        publisher.publish(TestEvent).await?;
+        publisher.publish(TestEvent::default()).await?;
         let tx: PgTransaction<'_> = publisher.into();
 
         tx.commit().await?;
@@ -141,7 +133,7 @@ mod tests {
         let tx = pool.begin().await?;
 
         let mut publisher = Publisher::new(tx);
-        publisher.publish(TestEvent).await?;
+        publisher.publish(TestEvent::default()).await?;
         let tx: PgTransaction<'_> = publisher.into();
 
         tx.commit().await?;
@@ -171,8 +163,8 @@ mod tests {
 
         // Publish two events
         let mut publisher = Publisher::new(tx);
-        let event_1 = publisher.publish(TestEvent).await?;
-        let event_2 = publisher.publish(TestEvent).await?;
+        let event_1 = publisher.publish(TestEvent::default()).await?;
+        let event_2 = publisher.publish(TestEvent::default()).await?;
 
         let mut tx: PgTransaction<'_> = publisher.into();
 
@@ -229,7 +221,7 @@ mod tests {
         let tx = pool.begin().await?;
 
         let mut publisher = Publisher::new(tx);
-        publisher.publish(TestEvent).await?;
+        publisher.publish(TestEvent::default()).await?;
         let tx: PgTransaction<'_> = publisher.into();
 
         tx.commit().await?;

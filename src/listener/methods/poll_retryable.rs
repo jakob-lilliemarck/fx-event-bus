@@ -1,5 +1,5 @@
 use super::super::{Listener, ListenerError};
-use crate::RawEvent;
+use crate::models::RawEvent;
 use chrono::{DateTime, Utc};
 
 impl Listener {
@@ -52,11 +52,9 @@ impl Listener {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::test_tools::{
-        TestEvent, get_failed_attempts, init_tracing,
-    };
     use super::*;
     use crate::EventHandlerRegistry;
+    use crate::test_tools::{TestEvent, get_failed_attempts, init_tracing};
     use std::time::Duration;
 
     // Test that it returns event where try_earliest is in the past
@@ -67,7 +65,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent).await?;
+        let published_event = publisher.publish(TestEvent::default()).await?;
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -117,7 +115,7 @@ mod tests {
         let mut published_event_ids = Vec::with_capacity(events);
         for _ in 0..events {
             publisher
-                .publish(TestEvent)
+                .publish(TestEvent::default())
                 .await
                 .map(|event| published_event_ids.push(event.id))?;
         }
@@ -176,7 +174,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent).await?;
+        let published_event = publisher.publish(TestEvent::default()).await?;
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -230,7 +228,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent).await?;
+        let published_event = publisher.publish(TestEvent::default()).await?;
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -280,7 +278,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        publisher.publish(TestEvent).await?;
+        publisher.publish(TestEvent::default()).await?;
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use fx_event_bus::{
-    Event, EventHandler, EventHandlerRegistry, Publisher, listener::Listener,
+    Event, EventHandler, EventHandlerRegistry, Listener, Publisher,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, PgTransaction};

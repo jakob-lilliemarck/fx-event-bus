@@ -1,7 +1,6 @@
+use crate::{Listener, ListenerError};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
-
-use super::super::{Listener, ListenerError};
 
 impl Listener {
     #[tracing::instrument(
@@ -41,12 +40,12 @@ impl Listener {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::test_tools::{
+    use super::*;
+    use crate::EventHandlerRegistry;
+    use crate::test_tools::{
         TestEvent, init_tracing, is_acknowledged, is_dead, is_failed,
         is_succeeded, is_unacknowledged,
     };
-    use super::*;
-    use crate::EventHandlerRegistry;
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_creates_a_successful_attempt(
@@ -57,7 +56,7 @@ mod tests {
 
         let tx = pool.begin().await?;
         let mut publisher = crate::Publisher::new(tx);
-        publisher.publish(TestEvent).await?;
+        publisher.publish(TestEvent::default()).await?;
 
         let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2);

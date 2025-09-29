@@ -1,6 +1,6 @@
 use crate::EventHandler;
 use crate::listener::methods::listen::Handled;
-use crate::{Event, listener::listener::Listener};
+use crate::{Event, Listener};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Once;
@@ -76,36 +76,6 @@ pub async fn is_failed(
     Ok(exists.unwrap_or(false))
 }
 
-pub async fn get_failed_attempts(
-    pool: &sqlx::PgPool
-) -> Result<i64, sqlx::Error> {
-    let failed_attempts = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) "count!"
-        FROM fx_event_bus.attempts_failed
-        "#,
-    )
-    .fetch_one(pool)
-    .await?;
-
-    Ok(failed_attempts)
-}
-
-pub async fn get_succeeded_attempts(
-    pool: &sqlx::PgPool
-) -> Result<i64, sqlx::Error> {
-    let failed_attempts = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) "count!"
-        FROM fx_event_bus.attempts_succeeded
-        "#,
-    )
-    .fetch_one(pool)
-    .await?;
-
-    Ok(failed_attempts)
-}
-
 pub async fn is_succeeded(
     pool: &sqlx::PgPool,
     event_id: Uuid,
@@ -144,6 +114,51 @@ pub async fn is_dead(
     Ok(exists.unwrap_or(false))
 }
 
+pub async fn get_failed_attempts(
+    pool: &sqlx::PgPool
+) -> Result<i64, sqlx::Error> {
+    let failed_attempts = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) "count!"
+        FROM fx_event_bus.attempts_failed
+        "#,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(failed_attempts)
+}
+
+pub async fn get_succeeded_attempts(
+    pool: &sqlx::PgPool
+) -> Result<i64, sqlx::Error> {
+    let failed_attempts = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) "count!"
+        FROM fx_event_bus.attempts_succeeded
+        "#,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(failed_attempts)
+}
+
+pub async fn get_unacknowledged_events(
+    pool: &sqlx::PgPool
+) -> Result<i64, sqlx::Error> {
+    let unacknowledged_events = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) "count!"
+        FROM fx_event_bus.events_unacknowledged
+        "#,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(unacknowledged_events)
+}
+
 pub async fn run_until(
     mut listener: Listener,
     until: usize,
@@ -180,7 +195,19 @@ pub async fn run_until(
 }
 
 #[derive(Deserialize, Serialize, Clone)]
-pub struct TestEvent;
+pub struct TestEvent {
+    pub message: String,
+    pub value: i32,
+}
+
+impl Default for TestEvent {
+    fn default() -> Self {
+        Self {
+            message: "test_event".to_string(),
+            value: 42,
+        }
+    }
+}
 
 impl Event for TestEvent {
     const NAME: &'static str = "TestEvent";
