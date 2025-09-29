@@ -1,4 +1,3 @@
-use super::errors::EventHandlingError;
 use super::handler_group::{Group, HandlerGroup};
 use crate::{Event, EventHandler, models::RawEvent};
 use chrono::{DateTime, Utc};
@@ -63,7 +62,7 @@ impl EventHandlerRegistry {
         event: &RawEvent,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'tx>,
-    ) -> (PgTransaction<'tx>, Result<(), EventHandlingError>) {
+    ) -> (PgTransaction<'tx>, Result<(), String>) {
         match self.handlers.get(&event.hash) {
             Some(group) => group.handle(event, polled_at, tx).await,
             None => (tx, Ok(())),

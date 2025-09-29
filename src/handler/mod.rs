@@ -1,4 +1,3 @@
-mod errors;
 mod event_handler;
 mod handler_group;
 mod handler_registry;

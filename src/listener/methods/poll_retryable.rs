@@ -1,4 +1,4 @@
-use super::super::{Listener, ListenerError};
+use super::super::Listener;
 use crate::models::RawEvent;
 use chrono::{DateTime, Utc};
 
@@ -13,7 +13,7 @@ impl Listener {
     pub async fn poll_retryable<'tx>(
         tx: &mut sqlx::PgTransaction<'tx>,
         now: DateTime<Utc>,
-    ) -> Result<Option<RawEvent>, ListenerError> {
+    ) -> Result<Option<RawEvent>, sqlx::Error> {
         let retry = sqlx::query_as!(
             RawEvent,
             r#"

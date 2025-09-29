@@ -8,7 +8,7 @@ mod publisher;
 mod test_tools;
 
 pub use handler::{EventHandler, EventHandlerRegistry};
-pub use listener::{Listener, ListenerError};
+pub use listener::Listener;
 pub use migrations::run_migrations;
 pub use models::{Event, RawEvent};
 pub use publisher::{Publisher, PublisherError};

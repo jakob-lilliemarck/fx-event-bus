@@ -1,4 +1,3 @@
-use super::errors::EventHandlingError;
 use crate::handler::event_handler::EventHandler;
 use crate::models::{Event, RawEvent};
 use chrono::{DateTime, Utc};
@@ -13,7 +12,7 @@ trait ErasedEventHandler<E: Event>: Send + Sync {
         input: E,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
-    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>;
+    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), String>)>;
 }
 
 // Blanket implementation that converts any EventHandler to ErasedEventHandler
@@ -23,13 +22,12 @@ impl<E: Event, H: EventHandler<E>> ErasedEventHandler<E> for H {
         input: E,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
-    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), EventHandlingError>)>
-    {
+    ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), String>)> {
         let fut = self.handle(input, polled_at, tx);
         Box::pin(async move {
             let (tx, result) = fut.await;
-            let converted_result = result
-                .map_err(|err| EventHandlingError::HandlerError(Box::new(err)));
+            // map error to string directly.
+            let converted_result = result.map_err(|err| err.to_string());
             (tx, converted_result)
         })
     }
@@ -64,7 +62,7 @@ pub trait HandlerGroup: Send + Sync + Any {
         event: &RawEvent,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'tx>,
-    ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), EventHandlingError>)>;
+    ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), String>)>;
 }
 
 impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
@@ -73,17 +71,13 @@ impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
         event: &RawEvent,
         polled_at: DateTime<Utc>,
         tx: PgTransaction<'tx>,
-    ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), EventHandlingError>)>
-    {
+    ) -> BoxFuture<'tx, (PgTransaction<'tx>, Result<(), String>)> {
         let event = event.clone();
         Box::pin(async move {
             let typed: E = match serde_json::from_value(event.payload) {
                 Ok(typed) => typed,
                 Err(err) => {
-                    return (
-                        tx,
-                        Err(EventHandlingError::DeserializationError(err)),
-                    );
+                    return (tx, Err(err.to_string()));
                 }
             };
 

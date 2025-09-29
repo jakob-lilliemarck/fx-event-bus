@@ -1,5 +1,5 @@
 use super::super::Listener;
-use crate::listener::{ListenerError, poll_control::PollControlStream};
+use crate::listener::poll_control::PollControlStream;
 use chrono::Utc;
 use futures::StreamExt;
 use sqlx::postgres::PgListener;
@@ -29,7 +29,7 @@ impl Listener {
     pub async fn listen(
         &mut self,
         tx: Option<Sender<Handled>>,
-    ) -> Result<(), ListenerError> {
+    ) -> Result<(), sqlx::Error> {
         let mut control = PollControlStream::new(
             Duration::from_millis(500),
             Duration::from_millis(2_500),

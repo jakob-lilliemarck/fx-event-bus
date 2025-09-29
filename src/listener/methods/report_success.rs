@@ -1,4 +1,4 @@
-use crate::{Listener, ListenerError};
+use crate::Listener;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
@@ -16,7 +16,7 @@ impl Listener {
         tx: &mut sqlx::PgTransaction<'tx>,
         event_id: Uuid,
         attempted_at: DateTime<Utc>,
-    ) -> Result<(), ListenerError> {
+    ) -> Result<(), sqlx::Error> {
         // FIXME: reporting success currently does not clean up failures
         sqlx::query!(
             r#"

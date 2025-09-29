@@ -1,5 +1,5 @@
+use crate::Listener;
 use crate::models::RawEvent;
-use crate::{Listener, ListenerError};
 use chrono::{DateTime, Utc};
 
 impl Listener {
@@ -13,7 +13,7 @@ impl Listener {
     pub(super) async fn poll_unacknowledged<'tx>(
         tx: &mut sqlx::PgTransaction<'tx>,
         now: DateTime<Utc>,
-    ) -> Result<Option<RawEvent>, ListenerError> {
+    ) -> Result<Option<RawEvent>, sqlx::Error> {
         let acknowledged = sqlx::query_as!(
             RawEvent,
             r#"

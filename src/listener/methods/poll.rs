@@ -1,4 +1,4 @@
-use super::super::{Listener, ListenerError};
+use super::super::Listener;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ impl Listener {
     pub async fn poll(
         &self,
         now: DateTime<Utc>,
-    ) -> Result<Option<Uuid>, ListenerError> {
+    ) -> Result<Option<Uuid>, sqlx::Error> {
         // begin a transaction
         let mut tx = self.pool.begin().await?;
 
@@ -38,14 +38,14 @@ impl Listener {
         // use the transaction registry to handle the event
         let (mut tx, result) = self.registry.handle(&event, now, tx).await;
 
-        if let Err(error) = result {
+        if let Err(error_str) = result {
             // if the handling failed, fail the event
             self.report_failure(
                 &mut tx,
                 event_id,
                 attempted + 1,
                 now,
-                error.to_string(),
+                error_str,
             )
             .await?;
         } else {

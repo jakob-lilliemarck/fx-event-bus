@@ -1,4 +1,4 @@
-use crate::{Listener, ListenerError};
+use crate::Listener;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
@@ -26,7 +26,7 @@ impl Listener {
             event_id = %event_id,
             attempted = attempted,
             attempted_at = %attempted_at,
-            error = error,
+            error = error_str,
             max_attempts = self.max_attempts
         ),
         err
@@ -37,8 +37,8 @@ impl Listener {
         event_id: Uuid,
         attempted: u32,
         attempted_at: DateTime<Utc>,
-        error: String,
-    ) -> Result<(), ListenerError> {
+        error_str: String,
+    ) -> Result<(), sqlx::Error> {
         let now = Utc::now();
 
         if attempted as i32 >= self.max_attempts {
@@ -68,7 +68,7 @@ impl Listener {
                 event_id,
                 attempted_at,
                 now,
-                error
+                error_str
             )
             .execute(&mut **tx)
             .await?;
@@ -88,7 +88,7 @@ impl Listener {
                 event_id,
                 self.try_earliest(attempted_at, attempted),
                 attempted as i32,
-                error
+                error_str
             )
             .execute(&mut **tx)
             .await?;
