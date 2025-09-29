@@ -3,8 +3,25 @@ use crate::models::RawEvent;
 use chrono::{DateTime, Utc};
 
 impl Listener {
-    // uses FOR UPDATE SKIP LOCKED to update the attempted_at column and return the next event to retry
-    // process the event using the same transaction to ensure consistency
+    /// Polls for retryable events that are ready for another processing attempt.
+    ///
+    /// Uses FOR UPDATE SKIP LOCKED to atomically claim retryable events
+    /// while maintaining FIFO ordering and avoiding contention between
+    /// concurrent listeners.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - Database transaction to use for the operation
+    /// * `now` - Current timestamp to check against retry deadlines
+    ///
+    /// # Returns
+    ///
+    /// Returns the next retryable event if one is available and ready,
+    /// or `None` if no events are ready for retry.
+    ///
+    /// # Errors
+    ///
+    /// Returns database errors if the query or transaction operations fail.
     #[tracing::instrument(
         skip(tx),
         fields(now = %now),

@@ -2,20 +2,32 @@ use crate::EventHandlerRegistry;
 use sqlx::PgPool;
 use std::time::Duration;
 
+/// Processes events from the event bus.
+///
+/// Listens for events, handles them with registered handlers,
+/// and manages retry logic with exponential backoff.
 pub struct Listener {
-    /// Database pool
+    // Database connection pool
     pub(super) pool: PgPool,
-    /// The handler registry to handle events with
+    // Registered event handlers
     pub(super) registry: EventHandlerRegistry,
-    /// The maximum number of retries before moving to DLQ
+    // Maximum retry attempts before DLQ
     pub(super) max_attempts: i32,
-    /// The base duration used to compute exponential backoff
+    // Base duration for exponential backoff
     pub(super) retry_duration: Duration,
-    /// The number of events processed by this listener since start
+    // Events processed since start
     pub(super) count: usize,
 }
 
 impl Listener {
+    /// Creates a new listener with default configuration.
+    ///
+    /// Default settings: 3 max attempts, 15 second base retry duration.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - Database connection pool
+    /// * `registry` - Registry containing event handlers
     #[tracing::instrument(
         skip(pool, registry),
         fields(max_attempts = 3, retry_duration_ms = 15_000),
@@ -34,6 +46,11 @@ impl Listener {
         }
     }
 
+    /// Sets maximum retry attempts before moving events to dead letter queue.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_attempts` - Maximum number of processing attempts (1-65535)
     #[tracing::instrument(
         skip(self),
         fields(max_attempts = max_attempts),
@@ -47,6 +64,13 @@ impl Listener {
         self
     }
 
+    /// Sets base duration for exponential backoff retry delays.
+    ///
+    /// Actual delay = base_duration * 2^(attempt - 1)
+    ///
+    /// # Arguments
+    ///
+    /// * `retry_duration` - Base duration for retry calculations
     #[tracing::instrument(
         skip(self),
         fields(retry_duration_ms = retry_duration.as_millis()),

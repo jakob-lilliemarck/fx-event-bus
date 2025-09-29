@@ -3,12 +3,20 @@ use chrono::Utc;
 use sqlx::PgTransaction;
 use uuid::Uuid;
 
+/// Publishes events to the event bus.
+///
+/// Created from a database transaction to ensure events are published
+/// atomically with other database operations.
 pub struct Publisher<'tx> {
     tx: PgTransaction<'tx>,
 }
 
 impl<'tx> Publisher<'tx> {
-    /// Create a new Publisher from a database transaction.
+    /// Creates a new publisher from a database transaction.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - Database transaction to publish events within
     #[tracing::instrument(skip(tx), level = "debug")]
     pub fn new(tx: PgTransaction<'tx>) -> Self {
         Self { tx }
@@ -22,6 +30,15 @@ impl<'tx> Into<PgTransaction<'tx>> for Publisher<'tx> {
 }
 
 impl<'tx> Publisher<'tx> {
+    /// Publishes multiple events efficiently in a single database operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `events` - Slice of events to publish
+    ///
+    /// # Errors
+    ///
+    /// Returns `PublisherError` if serialization fails or database operation fails.
     #[tracing::instrument(
         skip(self, events),
         fields(
@@ -47,8 +64,9 @@ impl<'tx> Publisher<'tx> {
         );
 
         let mut first = true;
+        // Stream serialization: serialize each event as needed rather than
+        // pre-allocating all payloads, reducing peak memory usage
         for event in events {
-            // Serialize on-demand, fail immediately on error
             let payload = serde_json::to_value(event).map_err(|error| {
                 super::PublisherError::SerializationError {
                     hash: E::HASH,
@@ -88,6 +106,19 @@ impl<'tx> Publisher<'tx> {
         Ok(())
     }
 
+    /// Publishes a single event and returns the stored event data.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - Event to publish
+    ///
+    /// # Returns
+    ///
+    /// Returns the `RawEvent` as stored in the database, including the assigned ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PublisherError` if serialization fails or database operation fails.
     #[tracing::instrument(
         skip(self, event),
         fields(
@@ -110,7 +141,7 @@ impl<'tx> Publisher<'tx> {
         })?;
 
         let now = Utc::now();
-        
+
         // Publish the event
         let published = sqlx::query_as!(
             RawEvent,

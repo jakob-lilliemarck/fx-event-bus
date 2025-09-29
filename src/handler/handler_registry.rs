@@ -4,11 +4,17 @@ use chrono::{DateTime, Utc};
 use sqlx::PgTransaction;
 use std::{any::Any, collections::HashMap};
 
+/// Registry for event handlers.
+///
+/// Manages handlers for different event types and dispatches
+/// events to the appropriate handlers based on event type hash.
 pub struct EventHandlerRegistry {
+    // Map from event hash to handler group
     handlers: HashMap<i32, Box<dyn HandlerGroup>>,
 }
 
 impl EventHandlerRegistry {
+    /// Creates a new empty handler registry.
     #[tracing::instrument(level = "debug")]
     pub fn new() -> EventHandlerRegistry {
         Self {
@@ -16,6 +22,22 @@ impl EventHandlerRegistry {
         }
     }
 
+    /// Registers a handler for a specific event type.
+    ///
+    /// Multiple handlers can be registered for the same event type.
+    /// They will be executed sequentially.
+    ///
+    /// # Arguments
+    ///
+    /// * `handler` - Handler implementing `EventHandler<E>`
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let mut registry = EventHandlerRegistry::new();
+    /// registry.with_handler::<OrderCreated, _>(OrderHandler);
+    /// registry.with_handler::<OrderCreated, _>(EmailHandler);
+    /// ```
     #[tracing::instrument(
         skip(self, handler),
         fields(

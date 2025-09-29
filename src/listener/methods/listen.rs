@@ -9,10 +9,13 @@ use uuid::Uuid;
 
 const EVENTS_CHANNEL: &str = "fx_event_bus";
 
+/// Result of a polling operation.
+///
+/// Sent through the channel to report polling results.
 pub struct Handled {
-    /// The ID of the event that was handled, if any
+    /// ID of the event that was handled, if any
     pub id: Option<Uuid>,
-    /// The number of events processed by this listener since start
+    /// Total events processed by this listener since start
     pub count: usize,
 }
 
@@ -26,13 +29,25 @@ impl Listener {
         ),
         err
     )]
+    /// Starts the event listener loop.
+    ///
+    /// Continuously polls for events using PostgreSQL LISTEN/NOTIFY
+    /// with intelligent backoff. Processes events until the loop is stopped.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - Optional channel to send polling results to
+    ///
+    /// # Errors
+    ///
+    /// Returns database errors if connection or polling fails.
     pub async fn listen(
         &mut self,
         tx: Option<Sender<Handled>>,
     ) -> Result<(), sqlx::Error> {
         let mut control = PollControlStream::new(
-            Duration::from_millis(500),
-            Duration::from_millis(2_500),
+            Duration::from_millis(500), // FIXME: make configurable
+            Duration::from_millis(2_500), // FIXME: make configurable
         );
 
         let mut listener = PgListener::connect_with(&self.pool).await?;

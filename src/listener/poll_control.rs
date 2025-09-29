@@ -22,6 +22,12 @@ pub struct PollControlStream {
 }
 
 impl PollControlStream {
+    /// Creates a new poll control stream with the specified durations.
+    ///
+    /// # Arguments
+    ///
+    /// * `duration` - Base polling interval duration
+    /// * `duration_max` - Maximum backoff duration for failed attempts
     #[tracing::instrument(
         fields(
             duration_ms = duration.as_millis(),
@@ -43,6 +49,11 @@ impl PollControlStream {
         }
     }
 
+    /// Sets the PostgreSQL notification stream for listening to database events.
+    ///
+    /// # Arguments
+    ///
+    /// * `pg_stream` - Stream of PostgreSQL notifications
     #[tracing::instrument(skip(self, pg_stream), level = "debug")]
     pub fn with_pg_stream(
         &mut self,
@@ -55,6 +66,7 @@ impl PollControlStream {
         self.pg_stream = Some(Box::pin(pg_stream))
     }
 
+    /// Increments the failed attempts counter for exponential backoff calculation.
     #[tracing::instrument(
         skip(self),
         fields(failed_attempts = self.failed_attempts + 1),
@@ -64,11 +76,13 @@ impl PollControlStream {
         self.failed_attempts += 1;
     }
 
+    /// Resets the failed attempts counter to zero.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn reset_failed_attempts(&mut self) {
         self.failed_attempts = 0;
     }
 
+    /// Forces an immediate poll on the next stream iteration.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn set_poll(&mut self) {
         self.poll = true

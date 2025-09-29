@@ -3,6 +3,18 @@ use sqlx::{Acquire, Postgres};
 // Embed the migrations directory at compile time
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
 
+/// Runs database migrations for the fx-event-bus schema.
+///
+/// Creates the 'fx_event_bus' schema if it doesn't exist and runs all
+/// embedded migrations within that schema.
+///
+/// # Arguments
+///
+/// * `conn` - Database connection or connection pool
+///
+/// # Errors
+///
+/// Returns `sqlx::Error` if schema creation or migration execution fails.
 pub async fn run_migrations<'a, A>(conn: A) -> Result<(), sqlx::Error>
 where
     A: Acquire<'a, Database = Postgres>,

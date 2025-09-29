@@ -39,6 +39,7 @@ pub struct Group<E: Event> {
 }
 
 impl<E: Event + Clone> Group<E> {
+    /// Creates a new empty handler group for events of type E.
     #[tracing::instrument(level = "debug")]
     pub fn new() -> Self {
         Self {
@@ -46,6 +47,11 @@ impl<E: Event + Clone> Group<E> {
         }
     }
 
+    /// Registers a handler for events of type E.
+    ///
+    /// # Arguments
+    ///
+    /// * `handler` - Handler implementing `EventHandler<E>`
     #[tracing::instrument(skip(self, handler), level = "debug")]
     pub fn register<H>(
         &mut self,
@@ -83,7 +89,8 @@ impl<E: Event + Clone + 'static> HandlerGroup for Group<E> {
                 }
             };
 
-            // Wrap in Arc for cheap sharing across handlers
+            // Arc enables cheap sharing of event data across multiple handlers
+            // avoids expensive cloning for each handler
             let typed = Arc::new(typed);
             let mut current_tx = tx;
             let mut result = Ok(());

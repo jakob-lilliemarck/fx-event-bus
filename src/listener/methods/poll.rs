@@ -12,6 +12,22 @@ impl Listener {
         ),
         err
     )]
+    /// Polls for and processes a single event.
+    ///
+    /// Prioritizes unacknowledged events over retry events. Handles the event
+    /// with registered handlers and manages success/failure reporting.
+    ///
+    /// # Arguments
+    ///
+    /// * `now` - Current timestamp for processing
+    ///
+    /// # Returns
+    ///
+    /// Returns the UUID of the processed event, or `None` if no events were available.
+    ///
+    /// # Errors
+    ///
+    /// Returns database errors if polling or transaction operations fail.
     pub async fn poll(
         &self,
         now: DateTime<Utc>,
@@ -19,8 +35,8 @@ impl Listener {
         // begin a transaction
         let mut tx = self.pool.begin().await?;
 
-        // Try to get an event to handle
-        // Try unacknowledged events first, and retry secondary
+        // Priority: new events (unacknowledged) before retries
+        // This ensures fresh events are processed before failed attempts
         let event = match Self::poll_unacknowledged(&mut tx, now).await? {
             None => match Self::poll_retryable(&mut tx, now).await? {
                 None => return Ok(None), // No events to handle
