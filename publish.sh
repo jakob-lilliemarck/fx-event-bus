@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
 # --- Run tests ---
@@ -7,10 +6,9 @@ echo "Running tests..."
 cargo test --lib
 
 # --- Configuration ---
-TOKEN="${CRATES_IO_TOKEN:-}"
+TOKEN="${CRATES_IO_TOKEN:-}"  # safer than hardcoding
 
 # --- Login to crates.io ---
-echo "Logging in to crates.io..."
 echo "$TOKEN" | cargo login
 
 # --- Read current version ---
@@ -45,6 +43,10 @@ echo "Bumping version: $current_version → $new_version"
 
 # --- Update Cargo.toml ---
 sed -i "s/^version = \".*\"/version = \"$new_version\"/" Cargo.toml
+
+# --- Commit the version bump ---
+git add Cargo.toml
+git commit -m "chore: bumped version from $current_version to $new_version"
 
 # --- Dry-run publishing ---
 echo "Performing dry-run to check package..."
