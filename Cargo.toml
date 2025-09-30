@@ -2,6 +2,11 @@
 name = "fx-event-bus"
 version = "0.1.0"
 edition = "2024"
+authors = ["Jakob Lilliemarck <lilliemarckjakob@gmail.com>"]
+
+description = "An event bus for monoliths, built with Postgres and sqlx"
+license = "MIT"
+repository = "https://github.com/jakob-lilliemarck/fx-event-bus"
 
 [[example]]
 name = "benchmark"
