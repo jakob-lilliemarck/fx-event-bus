@@ -1,6 +1,6 @@
 [package]
 name = "fx-event-bus"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 authors = ["Jakob Lilliemarck <lilliemarckjakob@gmail.com>"]
 
