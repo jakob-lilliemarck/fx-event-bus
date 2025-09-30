@@ -1,4 +1,4 @@
 .env
 .envrc
 push.sh
-publish.sh
+.env.private
