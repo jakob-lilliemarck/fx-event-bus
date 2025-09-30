@@ -1,5 +1,5 @@
 # fx-event-bus
-A simple event bus for monoliths where every node can handle any event. Designed for loose coupling of independent parts of an application domain.
+A simple event bus for monoliths where every node can handle any event. Designed to support loose coupling between independent parts of an application domain.
 
 ## What it is
  - Bus-based architecture for monolithic apps.
