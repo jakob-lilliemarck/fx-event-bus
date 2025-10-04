@@ -1,4 +1,4 @@
-use crate::EventHandler;
+use crate::Handler;
 use crate::listener::methods::listen::Handled;
 use crate::{Event, Listener};
 use chrono::{DateTime, Utc};
@@ -222,7 +222,7 @@ pub struct TestError {
     message: String,
 }
 
-impl EventHandler<TestEvent> for FailingHandler {
+impl Handler<TestEvent> for FailingHandler {
     type Error = TestError;
 
     fn handle<'a>(
@@ -247,7 +247,7 @@ impl EventHandler<TestEvent> for FailingHandler {
 
 pub struct SucceedingHandler;
 
-impl EventHandler<TestEvent> for SucceedingHandler {
+impl Handler<TestEvent> for SucceedingHandler {
     type Error = std::convert::Infallible;
 
     fn handle<'a>(

@@ -1,5 +1,5 @@
 use super::handler_group::{Group, HandlerGroup};
-use crate::{Event, EventHandler, models::RawEvent};
+use crate::{Event, Handler, models::RawEvent};
 use chrono::{DateTime, Utc};
 use sqlx::PgTransaction;
 use std::{any::Any, collections::HashMap};
@@ -51,7 +51,7 @@ impl EventHandlerRegistry {
         handler: H,
     ) where
         E: Event + Clone,
-        H: EventHandler<E> + 'static,
+        H: Handler<E> + 'static,
     {
         // Get or create the group
         let group = self

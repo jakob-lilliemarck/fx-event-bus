@@ -1,4 +1,4 @@
-use crate::handler::event_handler::EventHandler;
+use crate::handler::event_handler::Handler;
 use crate::models::{Event, RawEvent};
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
@@ -7,7 +7,7 @@ use std::any::Any;
 use std::sync::Arc;
 
 // Type-erased trait for handlers that can return different error types
-trait ErasedEventHandler<E: Event>: Send + Sync {
+trait HandlerErased<E: Event>: Send + Sync {
     fn handle_erased<'a>(
         &'a self,
         input: Arc<E>,
@@ -17,7 +17,7 @@ trait ErasedEventHandler<E: Event>: Send + Sync {
 }
 
 // Blanket implementation that converts any EventHandler to ErasedEventHandler
-impl<E: Event, H: EventHandler<E>> ErasedEventHandler<E> for H {
+impl<E: Event, H: Handler<E>> HandlerErased<E> for H {
     fn handle_erased<'a>(
         &'a self,
         input: Arc<E>,
@@ -35,7 +35,7 @@ impl<E: Event, H: EventHandler<E>> ErasedEventHandler<E> for H {
 }
 
 pub struct Group<E: Event> {
-    handlers: Vec<Box<dyn ErasedEventHandler<E>>>,
+    handlers: Vec<Box<dyn HandlerErased<E>>>,
 }
 
 impl<E: Event + Clone> Group<E> {
@@ -57,7 +57,7 @@ impl<E: Event + Clone> Group<E> {
         &mut self,
         handler: H,
     ) where
-        H: EventHandler<E> + 'static,
+        H: Handler<E> + 'static,
     {
         self.handlers.push(Box::new(handler));
     }

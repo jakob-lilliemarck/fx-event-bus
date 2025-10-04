@@ -1,7 +1,5 @@
 use chrono::{DateTime, Utc};
-use fx_event_bus::{
-    Event, EventHandler, EventHandlerRegistry, Listener, Publisher,
-};
+use fx_event_bus::{Event, EventHandlerRegistry, Handler, Listener, Publisher};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, PgTransaction};
 use std::sync::Arc;
@@ -26,7 +24,7 @@ pub struct TestError {
 
 struct ThroughputBenchmarkHandler;
 
-impl EventHandler<ThroughputBenchmarkEvent> for ThroughputBenchmarkHandler {
+impl Handler<ThroughputBenchmarkEvent> for ThroughputBenchmarkHandler {
     type Error = TestError;
 
     fn handle<'a>(

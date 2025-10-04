@@ -30,7 +30,7 @@ use std::sync::Arc;
 ///     }
 /// }
 /// ```
-pub trait EventHandler<E: Event>: Send + Sync {
+pub trait Handler<E: Event>: Send + Sync {
     /// Error type returned by this handler
     type Error: std::error::Error + Send + Sync + 'static;
 

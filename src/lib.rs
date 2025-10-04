@@ -48,7 +48,7 @@ mod publisher;
 #[cfg(test)]
 mod test_tools;
 
-pub use handler::{EventHandler, EventHandlerRegistry};
+pub use handler::{Handler, EventHandlerRegistry};
 pub use listener::Listener;
 pub use migrations::run_migrations;
 pub use models::{Event, RawEvent};
