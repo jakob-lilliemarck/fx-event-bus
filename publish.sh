@@ -9,6 +9,10 @@ cargo test
 echo "Checking code formatting..."
 cargo fmt --check
 
+# --- Check offline documentation build ---
+echo "Checking documentation builds offline (simulating docs.rs)..."
+SQLX_OFFLINE=true cargo doc
+
 # --- Configuration ---
 TOKEN="${CRATES_IO_TOKEN:-}"
 
