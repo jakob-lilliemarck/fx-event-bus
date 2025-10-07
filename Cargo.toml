@@ -16,22 +16,22 @@ path = "examples/throughput_benchmark.rs"
 path = "src/lib.rs"
 
 [dependencies]
-sqlx = { workspace = true, features = ["migrate"] }
-serde = { workspace = true }
-serde_json = { workspace = true }
-futures = { workspace = true }
-thiserror = { workspace = true }
-const-fnv1a-hash = { workspace = true }
-chrono = { workspace = true }
-tracing = { workspace = true }
-uuid = { workspace = true }
-tokio = { workspace = true }
+sqlx = { version = "0.8", features = ["macros", "migrate", "runtime-tokio", "tls-rustls-ring", "postgres", "chrono", "uuid"] }
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.134"
+futures = "0.3.31"
+thiserror = "2.0.12"
+const-fnv1a-hash = "1.1"
+chrono = "0.4.39"
+tracing = "0.1.41"
+uuid = { version = "1.14.0", features = ["serde", "v7"] }
+tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros", "full", "tracing"] }
 
 [dev-dependencies]
-anyhow = { workspace = true }
-tokio = { workspace = true }
-tracing-subscriber = { workspace = true }
-tokio-util = { workspace = true }
-dotenv = { workspace = true }
+anyhow = "1.0.95"
+tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros", "full", "tracing"] }
+tracing-subscriber = { version = "0.3.19", features = ["json"] }
+tokio-util = { version = "0.7.16", features = ["rt"] }
+dotenv = "0.15.0"
 textplots = "0.8.7"
-tabled = { workspace = true }
+tabled = "=0.9.0"

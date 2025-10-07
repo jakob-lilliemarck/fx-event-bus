@@ -1,4 +1,25 @@
-.env
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Cargo lock file (uncomment if this is an executable, not a library)
+# Cargo.lock
+
+# Local environment files
+.env.local
+.env.*.local
 .envrc
-push.sh
-.env.private
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# sqlx offline mode (keep this)
+!.sqlx/
