@@ -5,12 +5,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-type PgStream = Pin<
-    Box<
-        dyn Stream<Item = Result<sqlx::postgres::PgNotification, sqlx::Error>>
-            + Send,
-    >,
->;
+type PgStream =
+    Pin<Box<dyn Stream<Item = Result<sqlx::postgres::PgNotification, sqlx::Error>> + Send>>;
 
 pub struct PollControlStream {
     pg_stream: Option<PgStream>,
@@ -35,10 +31,7 @@ impl PollControlStream {
         ),
         level = "debug"
     )]
-    pub fn new(
-        duration: Duration,
-        duration_max: Duration,
-    ) -> Self {
+    pub fn new(duration: Duration, duration_max: Duration) -> Self {
         Self {
             pg_stream: None,
             duration,
@@ -57,9 +50,8 @@ impl PollControlStream {
     #[tracing::instrument(skip(self, pg_stream), level = "debug")]
     pub fn with_pg_stream(
         &mut self,
-        pg_stream: impl Stream<
-            Item = Result<sqlx::postgres::PgNotification, sqlx::Error>,
-        > + Unpin
+        pg_stream: impl Stream<Item = Result<sqlx::postgres::PgNotification, sqlx::Error>>
+        + Unpin
         + Send
         + 'static,
     ) {
@@ -93,10 +85,7 @@ impl PollControlStream {
         fields(duration_ms = duration.as_millis()),
         level = "debug"
     )]
-    fn wake_in(
-        cx: &mut Context<'_>,
-        duration: Duration,
-    ) {
+    fn wake_in(cx: &mut Context<'_>, duration: Duration) {
         let waker = cx.waker().clone();
         tokio::spawn(async move {
             tokio::time::sleep(duration).await;
@@ -122,10 +111,7 @@ impl PollControlStream {
 impl Stream for PollControlStream {
     type Item = Result<bool, sqlx::Error>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let slf = self.get_mut();
 
         // check if there were failed attempts
@@ -192,8 +178,7 @@ mod tests {
     async fn test_backoff() {
         let duration = Duration::from_millis(5);
 
-        let mut stream =
-            PollControlStream::new(duration, Duration::from_millis(20));
+        let mut stream = PollControlStream::new(duration, Duration::from_millis(20));
 
         let iterations = 3;
         // 0 waits 0ms,  0ms
@@ -224,8 +209,7 @@ mod tests {
     async fn test_poll_duration_override() {
         let duration = Duration::from_millis(5);
 
-        let mut stream =
-            PollControlStream::new(duration, Duration::from_millis(20));
+        let mut stream = PollControlStream::new(duration, Duration::from_millis(20));
 
         stream.set_poll();
 

@@ -32,10 +32,7 @@ impl Handler<ThroughputBenchmarkEvent> for ThroughputBenchmarkHandler {
         _input: Arc<ThroughputBenchmarkEvent>,
         _polled_at: DateTime<Utc>,
         tx: PgTransaction<'a>,
-    ) -> futures::future::BoxFuture<
-        'a,
-        (PgTransaction<'a>, Result<(), TestError>),
-    > {
+    ) -> futures::future::BoxFuture<'a, (PgTransaction<'a>, Result<(), TestError>)> {
         Box::pin(async move { (tx, Ok(())) })
     }
 }
@@ -67,10 +64,7 @@ impl Statistics {
         }
     }
 
-    pub fn push(
-        &mut self,
-        measurement: Duration,
-    ) {
+    pub fn push(&mut self, measurement: Duration) {
         self.measurements.push(measurement);
         self.min = self.min.min(measurement);
         self.max = self.max.max(measurement);
@@ -111,11 +105,7 @@ struct Bencher {
 }
 
 impl Bencher {
-    fn new(
-        listener: Listener,
-        iterations: usize,
-        pool: PgPool,
-    ) -> Self {
+    fn new(listener: Listener, iterations: usize, pool: PgPool) -> Self {
         Bencher {
             listener,
             iterations,

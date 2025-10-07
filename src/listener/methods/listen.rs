@@ -41,12 +41,9 @@ impl Listener {
     /// # Errors
     ///
     /// Returns database errors if connection or polling fails.
-    pub async fn listen(
-        &mut self,
-        tx: Option<Sender<Handled>>,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn listen(&mut self, tx: Option<Sender<Handled>>) -> Result<(), sqlx::Error> {
         let mut control = PollControlStream::new(
-            Duration::from_millis(500), // FIXME: make configurable
+            Duration::from_millis(500),   // FIXME: make configurable
             Duration::from_millis(2_500), // FIXME: make configurable
         );
 
@@ -80,9 +77,7 @@ impl Listener {
                             })
                             .await
                         {
-                            tracing::warn!(
-                                "Listener failed to broadcast the poll result"
-                            );
+                            tracing::warn!("Listener failed to broadcast the poll result");
                         }
                     }
                 }
@@ -103,8 +98,8 @@ impl Listener {
 #[cfg(test)]
 mod tests {
     use crate::test_tools::{
-        FailingHandler, SucceedingHandler, TestEvent, get_failed_attempts,
-        get_succeeded_attempts, init_tracing, run_until,
+        FailingHandler, SucceedingHandler, TestEvent, get_failed_attempts, get_succeeded_attempts,
+        init_tracing, run_until,
     };
     use crate::{EventHandlerRegistry, Publisher, listener::Listener};
     use chrono::Utc;
@@ -113,9 +108,7 @@ mod tests {
     use uuid::Uuid;
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_handles_an_unacknowledged_event(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_handles_an_unacknowledged_event(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let tx = pool.begin().await?;
 
@@ -141,9 +134,7 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_retries_failed_attempts(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_retries_failed_attempts(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let tx = pool.begin().await?;
 
@@ -170,7 +161,7 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_handles_unacknowledged_events_before_retrying_failed_attempts(
-        pool: sqlx::PgPool
+        pool: sqlx::PgPool,
     ) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
@@ -196,13 +187,7 @@ mod tests {
 
         // Report a failed attempt for the acknoledged event
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
         tx.commit().await?;
 
@@ -229,9 +214,7 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_fails_the_attempt_if_one_handler_fails(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_fails_the_attempt_if_one_handler_fails(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let tx = pool.begin().await?;
 

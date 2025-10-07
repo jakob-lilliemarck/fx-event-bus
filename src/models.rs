@@ -8,14 +8,17 @@ use uuid::Uuid;
 /// Implement this trait on your event types to make them processable.
 ///
 /// # Example
-/// 
+///
 /// ```rust
+/// use fx_event_bus::Event;
+/// use serde::{Serialize, Deserialize};
+///
 /// #[derive(Serialize, Deserialize, Clone)]
 /// struct OrderCreated {
 ///     order_id: u64,
 ///     customer_name: String,
 /// }
-/// 
+///
 /// impl Event for OrderCreated {
 ///     const NAME: &'static str = "OrderCreated";
 /// }
@@ -28,7 +31,7 @@ pub trait Event: Serialize + DeserializeOwned + Clone + Send + Sync + 'static {
 }
 
 /// Raw event data as stored in the database.
-/// 
+///
 /// Contains the event metadata and JSON payload. Used internally
 /// by handlers - you typically don't create these directly.
 #[derive(Debug, Clone)]

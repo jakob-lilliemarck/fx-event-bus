@@ -20,10 +20,7 @@ pub fn init_tracing() {
     });
 }
 
-pub async fn is_acknowledged(
-    pool: &sqlx::PgPool,
-    event_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_acknowledged(pool: &sqlx::PgPool, event_id: Uuid) -> Result<bool, sqlx::Error> {
     let exists = sqlx::query_scalar!(
         r#"
         SELECT EXISTS(
@@ -39,10 +36,7 @@ pub async fn is_acknowledged(
     Ok(exists.unwrap_or(false))
 }
 
-pub async fn is_unacknowledged(
-    pool: &sqlx::PgPool,
-    event_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_unacknowledged(pool: &sqlx::PgPool, event_id: Uuid) -> Result<bool, sqlx::Error> {
     let exists = sqlx::query_scalar!(
         r#"
         SELECT EXISTS(
@@ -58,10 +52,7 @@ pub async fn is_unacknowledged(
     Ok(exists.unwrap_or(false))
 }
 
-pub async fn is_failed(
-    pool: &sqlx::PgPool,
-    event_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_failed(pool: &sqlx::PgPool, event_id: Uuid) -> Result<bool, sqlx::Error> {
     let exists = sqlx::query_scalar!(
         r#"
         SELECT EXISTS(
@@ -77,10 +68,7 @@ pub async fn is_failed(
     Ok(exists.unwrap_or(false))
 }
 
-pub async fn is_succeeded(
-    pool: &sqlx::PgPool,
-    event_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_succeeded(pool: &sqlx::PgPool, event_id: Uuid) -> Result<bool, sqlx::Error> {
     let exists = sqlx::query_scalar!(
         r#"
         SELECT EXISTS(
@@ -96,10 +84,7 @@ pub async fn is_succeeded(
     Ok(exists.unwrap_or(false))
 }
 
-pub async fn is_dead(
-    pool: &sqlx::PgPool,
-    event_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_dead(pool: &sqlx::PgPool, event_id: Uuid) -> Result<bool, sqlx::Error> {
     let exists = sqlx::query_scalar!(
         r#"
         SELECT EXISTS(
@@ -115,9 +100,7 @@ pub async fn is_dead(
     Ok(exists.unwrap_or(false))
 }
 
-pub async fn get_failed_attempts(
-    pool: &sqlx::PgPool
-) -> Result<i64, sqlx::Error> {
+pub async fn get_failed_attempts(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
     let failed_attempts = sqlx::query_scalar!(
         r#"
         SELECT COUNT(*) "count!"
@@ -130,9 +113,7 @@ pub async fn get_failed_attempts(
     Ok(failed_attempts)
 }
 
-pub async fn get_succeeded_attempts(
-    pool: &sqlx::PgPool
-) -> Result<i64, sqlx::Error> {
+pub async fn get_succeeded_attempts(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
     let failed_attempts = sqlx::query_scalar!(
         r#"
         SELECT COUNT(*) "count!"
@@ -145,9 +126,7 @@ pub async fn get_succeeded_attempts(
     Ok(failed_attempts)
 }
 
-pub async fn get_unacknowledged_events(
-    pool: &sqlx::PgPool
-) -> Result<i64, sqlx::Error> {
+pub async fn get_unacknowledged_events(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
     let unacknowledged_events = sqlx::query_scalar!(
         r#"
         SELECT COUNT(*) "count!"
@@ -160,10 +139,7 @@ pub async fn get_unacknowledged_events(
     Ok(unacknowledged_events)
 }
 
-pub async fn run_until(
-    mut listener: Listener,
-    until: usize,
-) -> anyhow::Result<Vec<Handled>> {
+pub async fn run_until(mut listener: Listener, until: usize) -> anyhow::Result<Vec<Handled>> {
     let (tx, mut rx) = mpsc::channel::<Handled>(100);
     let cancel = CancellationToken::new();
     let cancel_clone = cancel.clone();
@@ -230,10 +206,7 @@ impl Handler<TestEvent> for FailingHandler {
         _: Arc<TestEvent>,
         _: DateTime<Utc>,
         tx: sqlx::PgTransaction<'a>,
-    ) -> futures::future::BoxFuture<
-        'a,
-        (sqlx::PgTransaction<'a>, Result<(), Self::Error>),
-    > {
+    ) -> futures::future::BoxFuture<'a, (sqlx::PgTransaction<'a>, Result<(), Self::Error>)> {
         Box::pin(async move {
             (
                 tx,
@@ -255,10 +228,7 @@ impl Handler<TestEvent> for SucceedingHandler {
         _: Arc<TestEvent>,
         _: DateTime<Utc>,
         tx: sqlx::PgTransaction<'a>,
-    ) -> futures::future::BoxFuture<
-        'a,
-        (sqlx::PgTransaction<'a>, Result<(), Self::Error>),
-    > {
+    ) -> futures::future::BoxFuture<'a, (sqlx::PgTransaction<'a>, Result<(), Self::Error>)> {
         Box::pin(async move { (tx, Ok(())) })
     }
 }

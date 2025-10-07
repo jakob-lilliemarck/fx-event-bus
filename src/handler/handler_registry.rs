@@ -34,6 +34,52 @@ impl EventHandlerRegistry {
     /// # Example
     ///
     /// ```rust
+    /// use fx_event_bus::{EventHandlerRegistry, Event, Handler};
+    /// use serde::{Serialize, Deserialize};
+    /// use std::sync::Arc;
+    /// use chrono::{DateTime, Utc};
+    /// use sqlx::PgTransaction;
+    /// use futures::future::BoxFuture;
+    /// use thiserror::Error;
+    ///
+    /// #[derive(Serialize, Deserialize, Clone)]
+    /// struct OrderCreated { order_id: u64 }
+    ///
+    /// impl Event for OrderCreated {
+    ///     const NAME: &'static str = "OrderCreated";
+    /// }
+    ///
+    /// #[derive(Error, Debug)]
+    /// #[error("Handler error")]
+    /// struct HandlerError;
+    ///
+    /// struct OrderHandler;
+    /// struct EmailHandler;
+    ///
+    /// impl Handler<OrderCreated> for OrderHandler {
+    ///     type Error = HandlerError;
+    ///     fn handle<'a>(
+    ///         &'a self,
+    ///         event: Arc<OrderCreated>,
+    ///         polled_at: DateTime<Utc>,
+    ///         tx: PgTransaction<'a>,
+    ///     ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), Self::Error>)> {
+    ///         Box::pin(async move { (tx, Ok(())) })
+    ///     }
+    /// }
+    ///
+    /// impl Handler<OrderCreated> for EmailHandler {
+    ///     type Error = HandlerError;
+    ///     fn handle<'a>(
+    ///         &'a self,
+    ///         event: Arc<OrderCreated>,
+    ///         polled_at: DateTime<Utc>,
+    ///         tx: PgTransaction<'a>,
+    ///     ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), Self::Error>)> {
+    ///         Box::pin(async move { (tx, Ok(())) })
+    ///     }
+    /// }
+    ///
     /// let mut registry = EventHandlerRegistry::new();
     /// registry.with_handler::<OrderCreated, _>(OrderHandler);
     /// registry.with_handler::<OrderCreated, _>(EmailHandler);
@@ -46,10 +92,8 @@ impl EventHandlerRegistry {
         ),
         level = "debug"
     )]
-    pub fn with_handler<E, H>(
-        &mut self,
-        handler: H,
-    ) where
+    pub fn with_handler<E, H>(&mut self, handler: H)
+    where
         E: Event + Clone,
         H: Handler<E> + 'static,
     {
@@ -63,9 +107,9 @@ impl EventHandlerRegistry {
         let any_ref = group.as_mut() as &mut (dyn Any + '_);
 
         // Downcast the trait object back to concrete type
-        let group = any_ref
-            .downcast_mut::<Group<E>>()
-            .expect("Could not downcast to group. This indicates a hash collision between event types");
+        let group = any_ref.downcast_mut::<Group<E>>().expect(
+            "Could not downcast to group. This indicates a hash collision between event types",
+        );
 
         group.register(handler);
     }
@@ -79,7 +123,7 @@ impl EventHandlerRegistry {
             polled_at = %polled_at
         )
     )]
-    pub async fn handle<'tx>(
+    pub(crate) async fn handle<'tx>(
         &'tx self,
         event: &RawEvent,
         polled_at: DateTime<Utc>,

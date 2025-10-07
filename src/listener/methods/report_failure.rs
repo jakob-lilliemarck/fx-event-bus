@@ -12,11 +12,7 @@ impl Listener {
         ),
         level = "debug"
     )]
-    fn try_earliest(
-        &self,
-        attempted_at: DateTime<Utc>,
-        attempted: u32,
-    ) -> DateTime<Utc> {
+    fn try_earliest(&self, attempted_at: DateTime<Utc>, attempted: u32) -> DateTime<Utc> {
         attempted_at + self.retry_duration * 2_u32.pow(attempted - 1)
     }
 
@@ -103,15 +99,15 @@ mod tests {
     use super::*;
     use crate::EventHandlerRegistry;
     use crate::test_tools::{
-        TestEvent, init_tracing, is_acknowledged, is_dead, is_failed,
-        is_succeeded, is_unacknowledged,
+        TestEvent, init_tracing, is_acknowledged, is_dead, is_failed, is_succeeded,
+        is_unacknowledged,
     };
     use chrono::TimeZone;
     use std::time::Duration;
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_creates_a_failed_attempt_when_max_attempts_is_not_reached(
-        pool: sqlx::PgPool
+        pool: sqlx::PgPool,
     ) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
@@ -120,8 +116,8 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
-            .with_max_attempts(2);
+        let listener =
+            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -129,13 +125,7 @@ mod tests {
             .expect("Expected an event to be returned");
 
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
         tx.commit().await?;
 
@@ -152,7 +142,7 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_creates_a_dlq_record_when_max_attempts_is_reached(
-        pool: sqlx::PgPool
+        pool: sqlx::PgPool,
     ) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
@@ -161,8 +151,8 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
-            .with_max_attempts(1);
+        let listener =
+            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(1);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -170,13 +160,7 @@ mod tests {
             .expect("Expected an event to be returned");
 
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
         tx.commit().await?;
 
@@ -193,7 +177,7 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_cleans_up_failed_attempts_when_moving_to_dlq(
-        pool: sqlx::PgPool
+        pool: sqlx::PgPool,
     ) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
@@ -202,8 +186,8 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
-            .with_max_attempts(2);
+        let listener =
+            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -212,24 +196,12 @@ mod tests {
 
         // First attempt shall fail
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
 
         // Second attempt shall move to DLQ
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                2,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 2, now, "error".to_string())
             .await?;
         tx.commit().await?;
 
@@ -246,7 +218,7 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_computes_try_earliest_with_exponential_backoff(
-        pool: sqlx::PgPool
+        pool: sqlx::PgPool,
     ) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc.with_ymd_and_hms(2025, 09, 29, 12, 0, 0).unwrap();
@@ -256,8 +228,7 @@ mod tests {
             .with_max_attempts(attempts)
             .with_retry_duration(duration);
 
-        let expected =
-            &[now + duration, now + duration * 2, now + duration * 4];
+        let expected = &[now + duration, now + duration * 2, now + duration * 4];
         for i in 1..=attempts as usize {
             let actual = listener.try_earliest(now, i as u32);
             assert_eq!(actual, expected[i - 1], "Failed at attempt {}", i);

@@ -43,14 +43,12 @@ mod tests {
     use super::*;
     use crate::EventHandlerRegistry;
     use crate::test_tools::{
-        TestEvent, init_tracing, is_acknowledged, is_dead, is_failed,
-        is_succeeded, is_unacknowledged,
+        TestEvent, init_tracing, is_acknowledged, is_dead, is_failed, is_succeeded,
+        is_unacknowledged,
     };
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_creates_a_successful_attempt(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_creates_a_successful_attempt(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
 
@@ -58,8 +56,8 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
-            .with_max_attempts(2);
+        let listener =
+            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)

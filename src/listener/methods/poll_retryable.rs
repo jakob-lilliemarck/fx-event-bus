@@ -86,13 +86,7 @@ mod tests {
             .with_retry_duration(duration);
         // Report the attempt as failed
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
 
         let retried_event = Listener::poll_retryable(&mut tx, now + duration)
@@ -108,9 +102,7 @@ mod tests {
 
     // Test that it skips events where attempted_at is not null
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_returns_ready_events_in_fifo_order(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_returns_ready_events_in_fifo_order(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
 
@@ -157,12 +149,9 @@ mod tests {
         let mut retried_event_ids = Vec::with_capacity(events);
         for _ in 0..events {
             // Poll for retryable event using the time when the event will be ready
-            let retried_event = Listener::poll_retryable(
-                &mut tx,
-                now + duration * events as u32,
-            )
-            .await?
-            .expect("Expected retry to return an event");
+            let retried_event = Listener::poll_retryable(&mut tx, now + duration * events as u32)
+                .await?
+                .expect("Expected retry to return an event");
             retried_event_ids.push(retried_event.id);
         }
         tx.commit().await?;
@@ -196,13 +185,7 @@ mod tests {
         let ready_at = now + duration;
         // Report the attempt as failed
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
 
         // Poll for retryable event using the time when the event will be ready
@@ -211,13 +194,11 @@ mod tests {
             .expect("Expected retry to return an event");
 
         // Try to poll for the retryable using the same transaction
-        let second_retryable =
-            Listener::poll_retryable(&mut tx, ready_at).await?;
+        let second_retryable = Listener::poll_retryable(&mut tx, ready_at).await?;
 
         // Try to poll for the retryable again using another transaction
         let tx_2 = pool.begin().await?;
-        let third_retryable =
-            Listener::poll_retryable(&mut tx, ready_at).await?;
+        let third_retryable = Listener::poll_retryable(&mut tx, ready_at).await?;
         tx_2.commit().await?;
 
         tx.commit().await?;
@@ -249,13 +230,7 @@ mod tests {
             .with_retry_duration(duration);
         // Report the attempt as failed
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
 
         // Poll for retryable event using the time when the event will be ready
@@ -267,8 +242,7 @@ mod tests {
         // After commit the retryable event is no longer locked, but
         // is still skipped since it has been retried (attempted_at is not null)
         let mut tx = pool.begin().await?;
-        let second_retryable =
-            Listener::poll_retryable(&mut tx, now + duration).await?;
+        let second_retryable = Listener::poll_retryable(&mut tx, now + duration).await?;
         tx.commit().await?;
 
         assert!(retryable_event.id == published_event.id);
@@ -278,9 +252,7 @@ mod tests {
 
     // Test that it skips event where it is locked
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_skips_non_ready_events(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_skips_non_ready_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
 
@@ -299,13 +271,7 @@ mod tests {
             .with_retry_duration(duration);
         // Report the attempt as failed
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
 
         // Poll for retryable event using now without forwarding time
@@ -318,9 +284,7 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_returns_none_when_no_event_is_available(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_returns_none_when_no_event_is_available(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
 

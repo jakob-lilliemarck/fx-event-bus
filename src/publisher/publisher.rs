@@ -95,13 +95,15 @@ impl<'tx> Publisher<'tx> {
                 .push(")");
         }
 
-        query_builder.build().execute(&mut *self.tx).await.map_err(
-            |error| super::PublisherError::DatabaseError {
+        query_builder
+            .build()
+            .execute(&mut *self.tx)
+            .await
+            .map_err(|error| super::PublisherError::DatabaseError {
                 hash: E::HASH,
                 name: E::NAME.to_string(),
                 source: error,
-            },
-        )?;
+            })?;
 
         Ok(())
     }
@@ -127,10 +129,7 @@ impl<'tx> Publisher<'tx> {
         ),
         err
     )]
-    pub async fn publish<E: Event>(
-        &mut self,
-        event: E,
-    ) -> Result<RawEvent, super::PublisherError> {
+    pub async fn publish<E: Event>(&mut self, event: E) -> Result<RawEvent, super::PublisherError> {
         // Serialize the event
         let payload = serde_json::to_value(&event).map_err(|error| {
             super::PublisherError::SerializationError {
@@ -189,9 +188,7 @@ mod tests {
     };
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_publishes_single_events(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_publishes_single_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
         let tx = pool.begin().await?;
         let mut publisher = Publisher::new(tx);
 
@@ -215,9 +212,7 @@ mod tests {
         Ok(())
     }
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_publishes_many_events(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_publishes_many_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
         let tx = pool.begin().await?;
         let mut publisher = Publisher::new(tx);
         let events: Vec<TestEvent> = (0..100)

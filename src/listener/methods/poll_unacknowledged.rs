@@ -56,14 +56,12 @@ impl Listener {
 mod tests {
     use super::*;
     use crate::test_tools::{
-        TestEvent, init_tracing, is_acknowledged, is_dead, is_failed,
-        is_succeeded, is_unacknowledged,
+        TestEvent, init_tracing, is_acknowledged, is_dead, is_failed, is_succeeded,
+        is_unacknowledged,
     };
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_returns_acknowledged_events(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_returns_acknowledged_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
 
         let tx = pool.begin().await?;
@@ -90,9 +88,7 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_acknowledges_events_in_fifo_order(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_acknowledges_events_in_fifo_order(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
 
         let events = 3;
@@ -110,8 +106,7 @@ mod tests {
         // Create a buffer to collect event ids in the order they were acked
         let mut acked_ids = Vec::new();
         for _ in 0..events {
-            let event =
-                Listener::poll_unacknowledged(&mut tx, Utc::now()).await?;
+            let event = Listener::poll_unacknowledged(&mut tx, Utc::now()).await?;
             acked_ids.push(event.expect("Event not found").id)
         }
         tx.commit().await?;
@@ -144,13 +139,11 @@ mod tests {
             .expect("Expected an event to be returned");
 
         // Try to ack again using the same transaction
-        let second_ack =
-            Listener::poll_unacknowledged(&mut tx, Utc::now()).await?;
+        let second_ack = Listener::poll_unacknowledged(&mut tx, Utc::now()).await?;
 
         // Try to ack again using another transaction
         let mut tx_2 = pool.begin().await?;
-        let third_ack =
-            Listener::poll_unacknowledged(&mut tx_2, Utc::now()).await?;
+        let third_ack = Listener::poll_unacknowledged(&mut tx_2, Utc::now()).await?;
         tx_2.commit().await?;
 
         // Then commit the original transaction
@@ -164,9 +157,7 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_returns_none_when_no_event_is_available(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_returns_none_when_no_event_is_available(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let mut tx = pool.begin().await?;
         let event = Listener::poll_unacknowledged(&mut tx, Utc::now()).await?;

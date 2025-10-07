@@ -12,9 +12,28 @@ use std::sync::Arc;
 /// # Example
 ///
 /// ```rust
+/// use fx_event_bus::{Handler, Event};
+/// use serde::{Serialize, Deserialize};
+/// use std::sync::Arc;
+/// use chrono::{DateTime, Utc};
+/// use sqlx::PgTransaction;
+/// use futures::future::BoxFuture;
+/// use thiserror::Error;
+///
+/// #[derive(Serialize, Deserialize, Clone)]
+/// struct OrderCreated { order_id: u64 }
+///
+/// impl Event for OrderCreated {
+///     const NAME: &'static str = "OrderCreated";
+/// }
+///
+/// #[derive(Error, Debug)]
+/// #[error("Order processing failed")]
+/// struct OrderError;
+///
 /// struct OrderHandler;
 ///
-/// impl EventHandler<OrderCreated> for OrderHandler {
+/// impl Handler<OrderCreated> for OrderHandler {
 ///     type Error = OrderError;
 ///
 ///     fn handle<'a>(
@@ -25,6 +44,7 @@ use std::sync::Arc;
 ///     ) -> BoxFuture<'a, (PgTransaction<'a>, Result<(), Self::Error>)> {
 ///         Box::pin(async move {
 ///             // Process the order...
+///             println!("Processing order {}", event.order_id);
 ///             (tx, Ok(()))
 ///         })
 ///     }

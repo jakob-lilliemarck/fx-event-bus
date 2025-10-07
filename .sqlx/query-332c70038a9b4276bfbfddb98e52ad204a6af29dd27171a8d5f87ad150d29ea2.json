@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH next_event AS (\n                DELETE FROM fx_event_bus.events_unacknowledged\n                WHERE id = (\n                    SELECT id\n                    FROM fx_event_bus.events_unacknowledged\n                    ORDER BY published_at ASC, id ASC\n                    FOR UPDATE SKIP LOCKED\n                    LIMIT 1\n                )\n                RETURNING *\n            )\n            INSERT INTO fx_event_bus.events_acknowledged\n            SELECT\n                id,\n                name,\n                hash,\n                payload,\n                published_at,\n                $1 as acknowledged_at\n            FROM next_event\n            RETURNING\n                id,\n                name,\n                hash,\n                payload,\n                0::INTEGER \"attempted!:i32\"; -- always zero attempts when polling from unacknowledged\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "hash",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "payload",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "attempted!:i32",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "332c70038a9b4276bfbfddb98e52ad204a6af29dd27171a8d5f87ad150d29ea2"
+}

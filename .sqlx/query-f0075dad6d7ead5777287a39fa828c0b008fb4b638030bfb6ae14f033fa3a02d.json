@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO fx_event_bus.attempts_failed (\n                    id,\n                    event_id,\n                    try_earliest,\n                    attempted,\n                    attempted_at,\n                    error\n                ) VALUES ($1, $2, $3, $4, NULL, $5)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f0075dad6d7ead5777287a39fa828c0b008fb4b638030bfb6ae14f033fa3a02d"
+}

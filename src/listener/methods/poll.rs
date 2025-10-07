@@ -28,10 +28,7 @@ impl Listener {
     /// # Errors
     ///
     /// Returns database errors if polling or transaction operations fail.
-    pub async fn poll(
-        &self,
-        now: DateTime<Utc>,
-    ) -> Result<Option<Uuid>, sqlx::Error> {
+    pub async fn poll(&self, now: DateTime<Utc>) -> Result<Option<Uuid>, sqlx::Error> {
         // begin a transaction
         let mut tx = self.pool.begin().await?;
 
@@ -56,14 +53,8 @@ impl Listener {
 
         if let Err(error_str) = result {
             // if the handling failed, fail the event
-            self.report_failure(
-                &mut tx,
-                event_id,
-                attempted + 1,
-                now,
-                error_str,
-            )
-            .await?;
+            self.report_failure(&mut tx, event_id, attempted + 1, now, error_str)
+                .await?;
         } else {
             // otherwise succeed the event
             self.report_success(&mut tx, event_id, now).await?;
@@ -79,8 +70,8 @@ mod tests {
     use super::*;
     use crate::EventHandlerRegistry;
     use crate::test_tools::{
-        FailingHandler, SucceedingHandler, is_acknowledged, is_dead, is_failed,
-        is_succeeded, is_unacknowledged,
+        FailingHandler, SucceedingHandler, is_acknowledged, is_dead, is_failed, is_succeeded,
+        is_unacknowledged,
     };
     use crate::test_tools::{TestEvent, init_tracing};
     use sqlx::PgTransaction;
@@ -88,9 +79,7 @@ mod tests {
 
     // Also assert it returns true on successful handling
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_prioritizes_unacknowledged_events(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_prioritizes_unacknowledged_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
 
@@ -111,13 +100,7 @@ mod tests {
             .with_retry_duration(duration);
         // Report the the attempt to handle the acked event as failed
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
         tx.commit().await?;
 
@@ -134,9 +117,7 @@ mod tests {
 
     // Test that it returns events to retry when there are failed attempts and no unacknowledged events
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_retries_failed_attempts(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_retries_failed_attempts(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
 
@@ -156,13 +137,7 @@ mod tests {
             .with_retry_duration(duration);
         // Report the the attempt to handle the acked event as failed
         listener
-            .report_failure(
-                &mut tx,
-                acked_event.id,
-                1,
-                now,
-                "error".to_string(),
-            )
+            .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
         tx.commit().await?;
 
@@ -179,14 +154,12 @@ mod tests {
 
     // Test that it retries when there are no unacknowledged events
     #[sqlx::test(migrations = "./migrations")]
-    async fn it_returns_none_when_nothing_was_handled(
-        pool: sqlx::PgPool
-    ) -> anyhow::Result<()> {
+    async fn it_returns_none_when_nothing_was_handled(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
 
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
-            .with_max_attempts(2);
+        let listener =
+            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let polled_event_id = listener.poll(now).await?;
 
@@ -196,7 +169,7 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_creates_failed_attempt_on_failed_handling(
-        pool: sqlx::PgPool
+        pool: sqlx::PgPool,
     ) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
@@ -236,7 +209,7 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_creates_success_attempt_on_successful_handling(
-        pool: sqlx::PgPool
+        pool: sqlx::PgPool,
     ) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();

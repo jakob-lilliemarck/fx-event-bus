@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE fx_event_bus.attempts_failed f\n            SET attempted_at = $1\n            FROM fx_event_bus.events_acknowledged e\n            WHERE f.event_id = e.id\n              AND f.id = (\n                SELECT af.id\n                FROM fx_event_bus.attempts_failed af\n                WHERE af.try_earliest <= $1\n                  AND af.attempted_at IS NULL\n                ORDER BY af.try_earliest ASC, af.id ASC\n                FOR UPDATE SKIP LOCKED\n                LIMIT 1\n              )\n            RETURNING e.id, e.name, e.hash, e.payload, f.attempted\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "hash",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "payload",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "attempted",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a2edaede18cca0609fc9c36d0fb8ef54050f8fdc0d0af5c62db7840201c647e7"
+}

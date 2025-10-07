@@ -33,10 +33,7 @@ impl Listener {
         fields(max_attempts = 3, retry_duration_ms = 15_000),
         level = "debug"
     )]
-    pub fn new(
-        pool: PgPool,
-        registry: EventHandlerRegistry,
-    ) -> Self {
+    pub fn new(pool: PgPool, registry: EventHandlerRegistry) -> Self {
         Listener {
             pool,
             registry,
@@ -56,10 +53,7 @@ impl Listener {
         fields(max_attempts = max_attempts),
         level = "debug"
     )]
-    pub fn with_max_attempts(
-        mut self,
-        max_attempts: u16,
-    ) -> Self {
+    pub fn with_max_attempts(mut self, max_attempts: u16) -> Self {
         self.max_attempts = max_attempts as i32;
         self
     }
@@ -76,10 +70,7 @@ impl Listener {
         fields(retry_duration_ms = retry_duration.as_millis()),
         level = "debug"
     )]
-    pub fn with_retry_duration(
-        mut self,
-        retry_duration: Duration,
-    ) -> Self {
+    pub fn with_retry_duration(mut self, retry_duration: Duration) -> Self {
         self.retry_duration = retry_duration;
         self
     }

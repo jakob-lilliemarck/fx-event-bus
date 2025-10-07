@@ -53,10 +53,8 @@ impl<E: Event + Clone> Group<E> {
     ///
     /// * `handler` - Handler implementing `EventHandler<E>`
     #[tracing::instrument(skip(self, handler), level = "debug")]
-    pub fn register<H>(
-        &mut self,
-        handler: H,
-    ) where
+    pub fn register<H>(&mut self, handler: H)
+    where
         H: Handler<E> + 'static,
     {
         self.handlers.push(Box::new(handler));

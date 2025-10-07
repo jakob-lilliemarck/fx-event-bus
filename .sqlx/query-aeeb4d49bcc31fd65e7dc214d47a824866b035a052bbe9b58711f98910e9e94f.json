@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "CREATE SCHEMA IF NOT EXISTS fx_event_bus;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "aeeb4d49bcc31fd65e7dc214d47a824866b035a052bbe9b58711f98910e9e94f"
+}

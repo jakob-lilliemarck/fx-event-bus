@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH deleted_attempts AS (\n                    DELETE FROM fx_event_bus.attempts_failed\n                    WHERE event_id = $1\n                    RETURNING\n                        attempted_at,\n                        error,\n                        attempted\n                )\n                INSERT INTO fx_event_bus.attempts_dead (\n                    event_id,\n                    attempted_at,\n                    dead_at,\n                    errors\n                )\n                SELECT\n                    $1,\n                    array_agg(attempted_at ORDER BY attempted) || ARRAY[$2::TIMESTAMPTZ],\n                    $3,\n                    array_agg(error ORDER BY attempted) || ARRAY[$4]\n                FROM deleted_attempts\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7c618183f88f6526cfdcefbde3e6487c01c6439d6dca4c01f661be1bc993fa2b"
+}
