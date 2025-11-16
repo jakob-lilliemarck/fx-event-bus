@@ -20,6 +20,7 @@ where
     A: Acquire<'a, Database = Postgres>,
 {
     let mut tx = conn.begin().await?;
+
     // Ensure the 'fx_event_bus' schema exists
     sqlx::query("CREATE SCHEMA IF NOT EXISTS fx_event_bus;")
         .execute(&mut *tx)
