@@ -3,15 +3,6 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 impl Listener {
-    #[tracing::instrument(
-        skip(self),
-        fields(
-            now = %now,
-            max_attempts = self.max_attempts,
-            retry_duration_ms = self.retry_duration.as_millis()
-        ),
-        err
-    )]
     /// Polls for and processes a single event.
     ///
     /// Prioritizes unacknowledged events over retry events. Handles the event
@@ -28,6 +19,12 @@ impl Listener {
     /// # Errors
     ///
     /// Returns database errors if polling or transaction operations fail.
+    #[tracing::instrument(
+        skip(self),
+        fields(timestamp = %now),
+        level = "debug",
+        err
+    )]
     pub async fn poll(&self, now: DateTime<Utc>) -> Result<Option<Uuid>, sqlx::Error> {
         // begin a transaction
         let mut tx = self.pool.begin().await?;
@@ -36,13 +33,16 @@ impl Listener {
         // This ensures fresh events are processed before failed attempts
         let event = match Self::poll_unacknowledged(&mut tx, now).await? {
             None => match Self::poll_retryable(&mut tx, now).await? {
-                None => return Ok(None), // No events to handle
+                None => {
+                    tracing::debug!("Poll found no events");
+                    return Ok(None);
+                }
                 Some(event) => event,
             },
             Some(event) => event,
         };
+        tracing::debug!(event = %event.id, attempted = %event.attempted, "Poll found event");
 
-        // keep the event id for later use
         let event_id = event.id;
 
         // keep the event attempted for later use
