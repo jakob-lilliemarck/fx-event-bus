@@ -77,7 +77,7 @@ mod migrations;
 mod models;
 mod publisher;
 
-#[cfg(feature = "test-tools")]
+#[cfg(any(test, feature = "test-tools"))]
 pub mod test_tools;
 
 pub use handler::{EventHandlerRegistry, Handler};

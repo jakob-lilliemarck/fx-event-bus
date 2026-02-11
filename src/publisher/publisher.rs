@@ -180,7 +180,6 @@ impl<'tx> Publisher<'tx> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{
         Event,
