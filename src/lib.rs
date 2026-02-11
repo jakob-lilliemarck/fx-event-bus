@@ -77,8 +77,6 @@ mod migrations;
 mod models;
 mod publisher;
 
-#[cfg(test)]
-mod test_tools;
 #[cfg(feature = "test-tools")]
 pub mod test_tools;
 
