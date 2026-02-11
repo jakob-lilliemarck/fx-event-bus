@@ -8,6 +8,10 @@ description = "An event bus for monoliths, built with Postgres and sqlx"
 license = "MIT"
 repository = "https://github.com/jakob-lilliemarck/fx-event-bus"
 
+[features]
+default = []
+test-tools = ["anyhow", "tokio-util", "tracing-subscriber"]
+
 [[example]]
 name = "benchmark"
 path = "examples/throughput_benchmark.rs"
@@ -26,12 +30,12 @@ chrono = "0.4.39"
 tracing = "0.1.41"
 uuid = { version = "1.14.0", features = ["serde", "v7"] }
 tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros", "full", "tracing"] }
+anyhow = { version = "1.0.95", optional = true }
+tokio-util = { version = "0.7.16", features = ["rt"], optional = true }
+tracing-subscriber = { version = "0.3.19", features = ["json"], optional = true }
 
 [dev-dependencies]
-anyhow = "1.0.95"
 tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros", "full", "tracing"] }
-tracing-subscriber = { version = "0.3.19", features = ["json"] }
-tokio-util = { version = "0.7.16", features = ["rt"] }
 dotenv = "0.15.0"
 textplots = "0.8.7"
 tabled = "=0.9.0"

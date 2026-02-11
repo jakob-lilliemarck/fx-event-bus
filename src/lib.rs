@@ -79,6 +79,8 @@ mod publisher;
 
 #[cfg(test)]
 mod test_tools;
+#[cfg(feature = "test-tools")]
+pub mod test_tools;
 
 pub use handler::{EventHandlerRegistry, Handler};
 pub use listener::Listener;
