@@ -3,7 +3,7 @@ set -euo pipefail
 
 # --- Run tests ---
 echo "Running tests..."
-cargo test
+cargo test --all-features
 
 # --- Check code formatting ---
 echo "Checking code formatting..."
@@ -11,7 +11,7 @@ cargo fmt --check
 
 # --- Check offline documentation build ---
 echo "Checking documentation builds offline (simulating docs.rs)..."
-SQLX_OFFLINE=true cargo doc
+SQLX_OFFLINE=true cargo doc --all-features
 
 # --- Configuration ---
 TOKEN="${CRATES_IO_TOKEN:-}"
