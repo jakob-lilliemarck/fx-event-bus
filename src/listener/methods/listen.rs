@@ -2,7 +2,6 @@ use super::super::Listener;
 use crate::listener::poll_control::PollControlStream;
 use chrono::Utc;
 use futures::StreamExt;
-use sqlx::postgres::PgListener;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
@@ -41,17 +40,22 @@ impl Listener {
     /// # Errors
     ///
     /// Returns database errors if connection or polling fails.
-    pub async fn listen(&mut self, tx: Option<Sender<Handled>>) -> Result<(), sqlx::Error> {
+    pub async fn listen(&mut self, tx: Option<Sender<Handled>>) -> anyhow::Result<()> {
         let mut control = PollControlStream::new(
             Duration::from_millis(500),   // FIXME: make configurable
             Duration::from_millis(2_500), // FIXME: make configurable
         );
 
-        let mut listener = PgListener::connect_with(&self.pool).await?;
-        listener.listen(EVENTS_CHANNEL).await?;
-        let pg_stream = listener.into_stream();
+        // FIXME: Remove commented
+        // let mut listener = PgListener::connect_with(&self.pool).await?;
+        // listener.listen(EVENTS_CHANNEL).await?;
+        // let pg_stream = listener.into_stream();
 
-        control.with_pg_stream(pg_stream);
+        // register the channel with the multiplexer
+        let mux_stream = self.mux.register(EVENTS_CHANNEL).await?;
+
+        // control.with_pg_stream(pg_stream);
+        control.with_mux_stream(mux_stream);
 
         while let Some(result) = control.next().await {
             if let Err(err) = result {
@@ -103,6 +107,7 @@ mod tests {
     };
     use crate::{EventHandlerRegistry, Publisher, listener::Listener};
     use chrono::Utc;
+    use fx_pgmux::Multiplexer;
     use sqlx::PgTransaction;
     use std::time::Duration;
     use uuid::Uuid;
@@ -121,7 +126,8 @@ mod tests {
         let mut registry = EventHandlerRegistry::new();
         registry.with_handler(SucceedingHandler);
 
-        let listener = Listener::new(pool.clone(), registry);
+        let mux = Multiplexer::new(&pool).await?;
+        let listener = Listener::new(mux, pool.clone(), registry);
         run_until(listener, 1).await?;
 
         let failed_attempts = get_failed_attempts(&pool).await?;
@@ -147,7 +153,8 @@ mod tests {
         let mut registry = EventHandlerRegistry::new();
         registry.with_handler(FailingHandler);
 
-        let listener = Listener::new(pool.clone(), registry);
+        let mux = Multiplexer::new(&pool).await?;
+        let listener = Listener::new(mux, pool.clone(), registry);
         run_until(listener, 1).await?;
 
         let failed_attempts = get_failed_attempts(&pool).await?;
@@ -181,7 +188,9 @@ mod tests {
 
         let mut registry = EventHandlerRegistry::new();
         registry.with_handler(SucceedingHandler);
-        let listener = Listener::new(pool.clone(), registry)
+
+        let mux = Multiplexer::new(&pool).await?;
+        let listener = Listener::new(mux, pool.clone(), registry)
             .with_max_attempts(2)
             .with_retry_duration(Duration::from_millis(5));
 
@@ -227,7 +236,9 @@ mod tests {
         let mut registry = EventHandlerRegistry::new();
         registry.with_handler(SucceedingHandler);
         registry.with_handler(FailingHandler);
-        let listener = Listener::new(pool.clone(), registry);
+
+        let mux = Multiplexer::new(&pool).await?;
+        let listener = Listener::new(mux, pool.clone(), registry);
 
         run_until(listener, 1).await?;
 

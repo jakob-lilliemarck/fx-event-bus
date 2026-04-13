@@ -1,4 +1,5 @@
 use crate::EventHandlerRegistry;
+use fx_pgmux::Multiplexer;
 use sqlx::PgPool;
 use std::time::Duration;
 
@@ -7,6 +8,8 @@ use std::time::Duration;
 /// Listens for events, handles them with registered handlers,
 /// and manages retry logic with exponential backoff.
 pub struct Listener {
+    // PgListener mutliplexer
+    pub(super) mux: Multiplexer,
     // Database connection pool
     pub(super) pool: PgPool,
     // Registered event handlers
@@ -29,12 +32,13 @@ impl Listener {
     /// * `pool` - Database connection pool
     /// * `registry` - Registry containing event handlers
     #[tracing::instrument(
-        skip(pool, registry),
+        skip(mux, pool, registry),
         fields(max_attempts = 3, retry_duration_ms = 15_000),
         level = "debug"
     )]
-    pub fn new(pool: PgPool, registry: EventHandlerRegistry) -> Self {
+    pub fn new(mux: Multiplexer, pool: PgPool, registry: EventHandlerRegistry) -> Self {
         Listener {
+            mux,
             pool,
             registry,
             max_attempts: 3,

@@ -15,6 +15,7 @@
 //! use sqlx::PgTransaction;
 //! use futures::future::BoxFuture;
 //! use thiserror::Error;
+//! use fx_pgmux::Multiplexer;
 //!
 //! // 1. Define your event
 //! #[derive(Serialize, Deserialize, Clone)]
@@ -55,7 +56,8 @@
 //! let mut registry = EventHandlerRegistry::new();
 //! registry.with_handler::<OrderCreated, _>(OrderHandler);
 //!
-//! let listener = Listener::new(pool.clone(), registry)
+//! let mux = Multiplexer::new(&pool).await?;
+//! let listener = Listener::new(mux, pool.clone(), registry)
 //!     .with_max_attempts(3)
 //!     .with_retry_duration(Duration::from_secs(30));
 //!
@@ -77,11 +79,11 @@ mod migrations;
 mod models;
 mod publisher;
 
-#[cfg(any(test, feature = "test-tools"))]
-pub mod test_tools;
-
 pub use handler::{EventHandlerRegistry, Handler};
 pub use listener::Listener;
 pub use migrations::run_migrations;
 pub use models::Event;
 pub use publisher::{Publisher, PublisherError};
+
+#[cfg(any(test, feature = "test-tools"))]
+pub mod test_tools;

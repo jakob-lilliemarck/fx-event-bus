@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use fx_event_bus::{Event, EventHandlerRegistry, Handler, Listener, Publisher};
+use fx_pgmux::Multiplexer;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, PgTransaction};
 use std::sync::Arc;
@@ -160,7 +161,8 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = EventHandlerRegistry::new();
     registry.with_handler(ThroughputBenchmarkHandler);
 
-    let listener = Listener::new(pool.clone(), registry);
+    let mux = Multiplexer::new(&pool).await?;
+    let listener = Listener::new(mux, pool.clone(), registry);
     let mut bencher = Bencher::new(listener, 100, pool);
 
     bencher.run().await?;

@@ -46,6 +46,8 @@ mod tests {
         TestEvent, init_tracing, is_acknowledged, is_dead, is_failed, is_succeeded,
         is_unacknowledged,
     };
+    use fx_pgmux::Multiplexer;
+    use sqlx::postgres::PgListener;
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_creates_a_successful_attempt(pool: sqlx::PgPool) -> anyhow::Result<()> {
@@ -56,8 +58,9 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
+        let mux = Multiplexer::new(&pool).await?;
         let listener =
-            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+            Listener::new(mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)

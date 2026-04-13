@@ -103,6 +103,7 @@ mod tests {
         is_unacknowledged,
     };
     use chrono::TimeZone;
+    use fx_pgmux::Multiplexer;
     use std::time::Duration;
 
     #[sqlx::test(migrations = "./migrations")]
@@ -116,8 +117,9 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
+        let mux = Multiplexer::new(&pool).await?;
         let listener =
-            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+            Listener::new(mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -151,8 +153,9 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
+        let mux = Multiplexer::new(&pool).await?;
         let listener =
-            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(1);
+            Listener::new(mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(1);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -186,8 +189,9 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
+        let mux = Multiplexer::new(&pool).await?;
         let listener =
-            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+            Listener::new(mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -224,7 +228,9 @@ mod tests {
         let now = Utc.with_ymd_and_hms(2025, 09, 29, 12, 0, 0).unwrap();
         let attempts = 3;
         let duration = Duration::from_secs(15);
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
+
+        let mux = Multiplexer::new(&pool).await?;
+        let listener = Listener::new(mux, pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(attempts)
             .with_retry_duration(duration);
 

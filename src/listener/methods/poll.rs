@@ -74,6 +74,7 @@ mod tests {
         is_unacknowledged,
     };
     use crate::test_tools::{TestEvent, init_tracing};
+    use fx_pgmux::Multiplexer;
     use sqlx::PgTransaction;
     use std::time::Duration;
 
@@ -95,7 +96,8 @@ mod tests {
             .expect("Expected acknowledge to return an event");
 
         let duration = Duration::from_secs(15);
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
+        let mux = Multiplexer::new(&pool).await?;
+        let listener = Listener::new(mux, pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the the attempt to handle the acked event as failed
@@ -132,7 +134,9 @@ mod tests {
             .expect("Expected acknowledge to return an event");
 
         let duration = Duration::from_secs(15);
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
+
+        let mux = Multiplexer::new(&pool).await?;
+        let listener = Listener::new(mux, pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the the attempt to handle the acked event as failed
@@ -158,8 +162,9 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
+        let mux = Multiplexer::new(&pool).await?;
         let listener =
-            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+            Listener::new(mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let polled_event_id = listener.poll(now).await?;
 
@@ -186,7 +191,8 @@ mod tests {
         // Register the failing handler
         registry.with_handler(FailingHandler);
 
-        let listener = Listener::new(pool.clone(), registry)
+        let mux = Multiplexer::new(&pool).await?;
+        let listener = Listener::new(mux, pool.clone(), registry)
             .with_max_attempts(2)
             .with_retry_duration(duration);
 
@@ -226,7 +232,8 @@ mod tests {
         // Register the succeeding handler
         registry.with_handler(SucceedingHandler);
 
-        let listener = Listener::new(pool.clone(), registry)
+        let mux = Multiplexer::new(&pool).await?;
+        let listener = Listener::new(mux, pool.clone(), registry)
             .with_max_attempts(2)
             .with_retry_duration(duration);
 

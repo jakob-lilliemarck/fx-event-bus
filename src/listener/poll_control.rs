@@ -5,11 +5,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-type PgStream =
-    Pin<Box<dyn Stream<Item = Result<sqlx::postgres::PgNotification, sqlx::Error>> + Send>>;
+type MuxStream = Pin<Box<dyn Stream<Item = String> + Send + 'static>>;
 
 pub struct PollControlStream {
-    pg_stream: Option<PgStream>,
+    mux_stream: Option<MuxStream>,
     failed_attempts: u32,
     polled_at: Instant,
     duration: Duration,
@@ -33,7 +32,7 @@ impl PollControlStream {
     )]
     pub fn new(duration: Duration, duration_max: Duration) -> Self {
         Self {
-            pg_stream: None,
+            mux_stream: None,
             duration,
             duration_max,
             failed_attempts: 0,
@@ -42,20 +41,12 @@ impl PollControlStream {
         }
     }
 
-    /// Sets the PostgreSQL notification stream for listening to database events.
-    ///
-    /// # Arguments
-    ///
-    /// * `pg_stream` - Stream of PostgreSQL notifications
-    #[tracing::instrument(skip(self, pg_stream), level = "debug")]
-    pub fn with_pg_stream(
+    #[tracing::instrument(skip(self, mux_stream), level = "debug")]
+    pub fn with_mux_stream(
         &mut self,
-        pg_stream: impl Stream<Item = Result<sqlx::postgres::PgNotification, sqlx::Error>>
-        + Unpin
-        + Send
-        + 'static,
+        mux_stream: impl Stream<Item = String> + Unpin + Send + 'static,
     ) {
-        self.pg_stream = Some(Box::pin(pg_stream))
+        self.mux_stream = Some(Box::pin(mux_stream))
     }
 
     /// Increments the failed attempts counter for exponential backoff calculation.
@@ -135,28 +126,21 @@ impl Stream for PollControlStream {
             return Poll::Ready(Some(Ok(true)));
         }
 
-        // if there is a notification stream, check for notifications
-        if let Some(ref mut pg_stream) = slf.pg_stream {
-            match pg_stream.as_mut().poll_next(cx) {
-                Poll::Ready(Some(Ok(_))) => {
-                    // received a Pg notification
+        // if there is a mux stream, check for notifications
+        if let Some(ref mut mux_stream) = slf.mux_stream {
+            match mux_stream.as_mut().poll_next(cx) {
+                Poll::Ready(Some(_message)) => {
                     slf.polled_at = Instant::now();
                     return Poll::Ready(Some(Ok(true)));
                 }
-                Poll::Ready(Some(Err(err))) => {
-                    // forward any database errors
-                    return Poll::Ready(Some(Err(err)));
-                }
                 Poll::Ready(None) => {
-                    // ignore ended stream
+                    // ignore end of stream
                 }
                 Poll::Pending => {
-                    // ignore pending state
+                    // ignore pending
                 }
             }
         }
-
-        // check if enough time elapsed
         if slf.polled_at.elapsed() > slf.duration {
             slf.polled_at = Instant::now();
             return Poll::Ready(Some(Ok(true)));
