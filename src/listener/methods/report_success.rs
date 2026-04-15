@@ -40,6 +40,8 @@ impl Listener {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::EventHandlerRegistry;
     use crate::test_tools::{
@@ -47,7 +49,7 @@ mod tests {
         is_unacknowledged,
     };
     use fx_pgmux::Multiplexer;
-    use sqlx::postgres::PgListener;
+    use tokio::sync::Mutex;
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_creates_a_successful_attempt(pool: sqlx::PgPool) -> anyhow::Result<()> {
@@ -58,9 +60,9 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
-        let mux = Multiplexer::new(&pool).await?;
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
         let listener =
-            Listener::new(mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+            Listener::new(&mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)

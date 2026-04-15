@@ -52,7 +52,8 @@ impl Listener {
         // let pg_stream = listener.into_stream();
 
         // register the channel with the multiplexer
-        let mux_stream = self.mux.register(EVENTS_CHANNEL).await?;
+        let mut lock = self.mux.lock().await;
+        let mux_stream = lock.register(EVENTS_CHANNEL).await?;
 
         // control.with_pg_stream(pg_stream);
         control.with_mux_stream(mux_stream);
@@ -109,7 +110,9 @@ mod tests {
     use chrono::Utc;
     use fx_pgmux::Multiplexer;
     use sqlx::PgTransaction;
+    use std::sync::Arc;
     use std::time::Duration;
+    use tokio::sync::Mutex;
     use uuid::Uuid;
 
     #[sqlx::test(migrations = "./migrations")]
@@ -125,9 +128,8 @@ mod tests {
 
         let mut registry = EventHandlerRegistry::new();
         registry.with_handler(SucceedingHandler);
-
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), registry);
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), registry);
         run_until(listener, 1).await?;
 
         let failed_attempts = get_failed_attempts(&pool).await?;
@@ -153,8 +155,8 @@ mod tests {
         let mut registry = EventHandlerRegistry::new();
         registry.with_handler(FailingHandler);
 
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), registry);
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), registry);
         run_until(listener, 1).await?;
 
         let failed_attempts = get_failed_attempts(&pool).await?;
@@ -189,8 +191,8 @@ mod tests {
         let mut registry = EventHandlerRegistry::new();
         registry.with_handler(SucceedingHandler);
 
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), registry)
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), registry)
             .with_max_attempts(2)
             .with_retry_duration(Duration::from_millis(5));
 
@@ -237,8 +239,8 @@ mod tests {
         registry.with_handler(SucceedingHandler);
         registry.with_handler(FailingHandler);
 
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), registry);
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), registry);
 
         run_until(listener, 1).await?;
 

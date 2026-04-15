@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tabled::{Style, Table, Tabled};
 use textplots::{Chart, Plot, Shape};
+use tokio::sync::Mutex;
 
 #[derive(Clone, Serialize, Deserialize)]
 struct ThroughputBenchmarkEvent {
@@ -161,8 +162,8 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = EventHandlerRegistry::new();
     registry.with_handler(ThroughputBenchmarkHandler);
 
-    let mux = Multiplexer::new(&pool).await?;
-    let listener = Listener::new(mux, pool.clone(), registry);
+    let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+    let listener = Listener::new(&mux, pool.clone(), registry);
     let mut bencher = Bencher::new(listener, 100, pool);
 
     bencher.run().await?;

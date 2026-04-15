@@ -104,7 +104,9 @@ mod tests {
     };
     use chrono::TimeZone;
     use fx_pgmux::Multiplexer;
+    use std::sync::Arc;
     use std::time::Duration;
+    use tokio::sync::Mutex;
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_creates_a_failed_attempt_when_max_attempts_is_not_reached(
@@ -117,9 +119,9 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
-        let mux = Multiplexer::new(&pool).await?;
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
         let listener =
-            Listener::new(mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+            Listener::new(&mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -153,9 +155,9 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
-        let mux = Multiplexer::new(&pool).await?;
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
         let listener =
-            Listener::new(mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(1);
+            Listener::new(&mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(1);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -189,9 +191,9 @@ mod tests {
         let mut publisher = crate::Publisher::new(tx);
         publisher.publish(TestEvent::default()).await?;
 
-        let mux = Multiplexer::new(&pool).await?;
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
         let listener =
-            Listener::new(mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+            Listener::new(&mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -229,8 +231,8 @@ mod tests {
         let attempts = 3;
         let duration = Duration::from_secs(15);
 
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), EventHandlerRegistry::new())
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(attempts)
             .with_retry_duration(duration);
 

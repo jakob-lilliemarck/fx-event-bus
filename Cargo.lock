@@ -504,13 +504,13 @@ dependencies = [
 
 [[package]]
 name = "fx-pgmux"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0259995714a72b75fb0dad011aedfb06bf94b2c423d4b4d7366e1f02b3ad2d76"
+checksum = "ce66677f966ea6315ca8227321f3ad67ebd9897ba60d22aa83af35735385b394"
 dependencies = [
- "anyhow",
  "futures",
  "sqlx",
+ "thiserror",
  "tracing",
 ]
 

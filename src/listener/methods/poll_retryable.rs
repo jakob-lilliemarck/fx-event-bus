@@ -61,10 +61,12 @@ impl Listener {
 #[cfg(test)]
 mod tests {
     use fx_pgmux::Multiplexer;
+    use tokio::sync::Mutex;
 
     use super::*;
     use crate::EventHandlerRegistry;
     use crate::test_tools::{TestEvent, get_failed_attempts, init_tracing};
+    use std::sync::Arc;
     use std::time::Duration;
 
     // Test that it returns event where try_earliest is in the past
@@ -83,8 +85,8 @@ mod tests {
             .expect("Expected acknowledge to return an event");
 
         let duration = Duration::from_secs(15);
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), EventHandlerRegistry::new())
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the attempt as failed
@@ -126,8 +128,8 @@ mod tests {
         let mut tx: sqlx::PgTransaction = publisher.into();
 
         let duration = Duration::from_secs(15);
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), EventHandlerRegistry::new())
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
 
@@ -183,8 +185,8 @@ mod tests {
             .expect("Expected acknowledge to return an event");
 
         let duration = Duration::from_secs(15);
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), EventHandlerRegistry::new())
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         let ready_at = now + duration;
@@ -230,8 +232,8 @@ mod tests {
             .expect("Expected acknowledge to return an event");
 
         let duration = Duration::from_secs(15);
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), EventHandlerRegistry::new())
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the attempt as failed
@@ -272,8 +274,8 @@ mod tests {
             .expect("Expected acknowledge to return an event");
 
         let duration = Duration::from_secs(15);
-        let mux = Multiplexer::new(&pool).await?;
-        let listener = Listener::new(mux, pool.clone(), EventHandlerRegistry::new())
+        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the attempt as failed

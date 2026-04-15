@@ -16,6 +16,7 @@
 //! use futures::future::BoxFuture;
 //! use thiserror::Error;
 //! use fx_pgmux::Multiplexer;
+//! use tokio::sync::Mutex;
 //!
 //! // 1. Define your event
 //! #[derive(Serialize, Deserialize, Clone)]
@@ -56,8 +57,8 @@
 //! let mut registry = EventHandlerRegistry::new();
 //! registry.with_handler::<OrderCreated, _>(OrderHandler);
 //!
-//! let mux = Multiplexer::new(&pool).await?;
-//! let listener = Listener::new(mux, pool.clone(), registry)
+//! let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
+//! let listener = Listener::new(&mux, pool.clone(), registry)
 //!     .with_max_attempts(3)
 //!     .with_retry_duration(Duration::from_secs(30));
 //!
