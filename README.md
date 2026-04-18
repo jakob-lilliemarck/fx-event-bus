@@ -11,3 +11,9 @@ A simple event bus for monoliths where every node can handle any event. Designed
 ## What it is not
  - Not a casual pub/sub library. Nodes must fully handle an event once acknowledged, or risk losing it.
  - Not designed for microservices where nodes handle events differently.
+
+## Generate query cache
+Some queries sit behind feature flags. Pass `--all-flags` to rustc when generating query cache!
+```sh
+cargo sqlx prepare -- --all-features
+```
