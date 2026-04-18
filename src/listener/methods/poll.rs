@@ -99,7 +99,7 @@ mod tests {
 
         let duration = Duration::from_secs(15);
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
+        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the the attempt to handle the acked event as failed
@@ -138,7 +138,7 @@ mod tests {
         let duration = Duration::from_secs(15);
 
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
+        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the the attempt to handle the acked event as failed
@@ -166,7 +166,7 @@ mod tests {
 
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
         let listener =
-            Listener::new(&mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let polled_event_id = listener.poll(now).await?;
 
@@ -194,7 +194,7 @@ mod tests {
         registry.with_handler(FailingHandler);
 
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(&mux, pool.clone(), registry)
+        let listener = Listener::new(pool.clone(), registry)
             .with_max_attempts(2)
             .with_retry_duration(duration);
 
@@ -235,7 +235,7 @@ mod tests {
         registry.with_handler(SucceedingHandler);
 
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(&mux, pool.clone(), registry)
+        let listener = Listener::new(pool.clone(), registry)
             .with_max_attempts(2)
             .with_retry_duration(duration);
 

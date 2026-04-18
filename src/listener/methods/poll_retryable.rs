@@ -86,7 +86,7 @@ mod tests {
 
         let duration = Duration::from_secs(15);
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
+        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the attempt as failed
@@ -129,7 +129,7 @@ mod tests {
 
         let duration = Duration::from_secs(15);
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
+        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
 
@@ -186,7 +186,7 @@ mod tests {
 
         let duration = Duration::from_secs(15);
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
+        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         let ready_at = now + duration;
@@ -233,7 +233,7 @@ mod tests {
 
         let duration = Duration::from_secs(15);
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
+        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the attempt as failed
@@ -275,7 +275,7 @@ mod tests {
 
         let duration = Duration::from_secs(15);
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(&mux, pool.clone(), EventHandlerRegistry::new())
+        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
         // Report the attempt as failed

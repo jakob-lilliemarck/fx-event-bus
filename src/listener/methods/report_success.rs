@@ -62,7 +62,7 @@ mod tests {
 
         let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
         let listener =
-            Listener::new(&mux, pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+            Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
 
         let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)

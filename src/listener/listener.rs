@@ -1,16 +1,13 @@
-use crate::EventHandlerRegistry;
-use fx_pgmux::Multiplexer;
+use crate::{EventHandlerRegistry, listener::methods::listen::EVENTS_CHANNEL};
+use futures::lock::Mutex;
 use sqlx::PgPool;
-use std::{sync::Arc, time::Duration};
-use tokio::sync::Mutex;
+use std::time::Duration;
 
 /// Processes events from the event bus.
 ///
 /// Listens for events, handles them with registered handlers,
 /// and manages retry logic with exponential backoff.
 pub struct Listener {
-    // PgListener mutliplexer
-    pub(super) mux: Arc<Mutex<Multiplexer>>,
     // Database connection pool
     pub(super) pool: PgPool,
     // Registered event handlers
@@ -21,6 +18,8 @@ pub struct Listener {
     pub(super) retry_duration: Duration,
     // Events processed since start
     pub(super) count: usize,
+    // Muxed stream
+    pub(super) stream: Mutex<Option<fx_pgmux::NotificationStream>>,
 }
 
 impl Listener {
@@ -33,23 +32,26 @@ impl Listener {
     /// * `pool` - Database connection pool
     /// * `registry` - Registry containing event handlers
     #[tracing::instrument(
-        skip(mux, pool, registry),
+        skip(pool, registry),
         fields(max_attempts = 3, retry_duration_ms = 15_000),
         level = "debug"
     )]
-    pub fn new(
-        mux: &Arc<Mutex<Multiplexer>>,
-        pool: PgPool,
-        registry: EventHandlerRegistry,
-    ) -> Self {
+    pub fn new(pool: PgPool, registry: EventHandlerRegistry) -> Self {
         Listener {
-            mux: mux.clone(),
             pool,
             registry,
             max_attempts: 3,
             retry_duration: Duration::from_millis(15_000),
             count: 0,
+            stream: Mutex::new(None),
         }
+    }
+
+    pub async fn register(&mut self, pgmux: &mut fx_pgmux::Multiplexer) -> anyhow::Result<()> {
+        let stream = pgmux.register(EVENTS_CHANNEL).await?;
+        let mut lock = self.stream.lock().await;
+        lock.replace(stream);
+        Ok(())
     }
 
     /// Sets maximum retry attempts before moving events to dead letter queue.

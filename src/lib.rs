@@ -57,10 +57,11 @@
 //! let mut registry = EventHandlerRegistry::new();
 //! registry.with_handler::<OrderCreated, _>(OrderHandler);
 //!
-//! let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-//! let listener = Listener::new(&mux, pool.clone(), registry)
+//! let mut mux = Multiplexer::new(&pool).await?;
+//! let mut listener = Listener::new(pool.clone(), registry)
 //!     .with_max_attempts(3)
 //!     .with_retry_duration(Duration::from_secs(30));
+//! listener.register(&mut mux).await?;
 //!
 //! // 4. Publish events
 //! let mut publisher = Publisher::new(tx);
