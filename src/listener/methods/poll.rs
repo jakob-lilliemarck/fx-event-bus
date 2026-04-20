@@ -76,9 +76,7 @@ mod tests {
     use crate::test_tools::{TestEvent, init_tracing};
     use fx_pgmux::Multiplexer;
     use sqlx::PgTransaction;
-    use std::sync::Arc;
     use std::time::Duration;
-    use tokio::sync::Mutex;
 
     // Also assert it returns true on successful handling
     #[sqlx::test(migrations = "./migrations")]
@@ -98,10 +96,15 @@ mod tests {
             .expect("Expected acknowledge to return an event");
 
         let duration = Duration::from_secs(15);
-        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
+
+        let mut mux = Multiplexer::new(&pool).await?;
+
+        let mut listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
+
+        listener.register(&mut mux).await?;
+
         // Report the the attempt to handle the acked event as failed
         listener
             .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
@@ -137,14 +140,19 @@ mod tests {
 
         let duration = Duration::from_secs(15);
 
-        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
+        let mut mux = Multiplexer::new(&pool).await?;
+
+        let mut listener = Listener::new(pool.clone(), EventHandlerRegistry::new())
             .with_max_attempts(2)
             .with_retry_duration(duration);
+
+        listener.register(&mut mux).await?;
+
         // Report the the attempt to handle the acked event as failed
         listener
             .report_failure(&mut tx, acked_event.id, 1, now, "error".to_string())
             .await?;
+
         tx.commit().await?;
 
         // Poll for the next event at the time when the retryable event is ready
@@ -164,9 +172,12 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener =
+        let mut mux = Multiplexer::new(&pool).await?;
+
+        let mut listener =
             Listener::new(pool.clone(), EventHandlerRegistry::new()).with_max_attempts(2);
+
+        listener.register(&mut mux).await?;
 
         let polled_event_id = listener.poll(now).await?;
 
@@ -193,10 +204,13 @@ mod tests {
         // Register the failing handler
         registry.with_handler(FailingHandler);
 
-        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(pool.clone(), registry)
+        let mut mux = Multiplexer::new(&pool).await?;
+
+        let mut listener = Listener::new(pool.clone(), registry)
             .with_max_attempts(2)
             .with_retry_duration(duration);
+
+        listener.register(&mut mux).await?;
 
         // Poll for the next event at the time when the retryable event is ready
         listener
@@ -234,10 +248,13 @@ mod tests {
         // Register the succeeding handler
         registry.with_handler(SucceedingHandler);
 
-        let mux = Arc::new(Mutex::new(Multiplexer::new(&pool).await?));
-        let listener = Listener::new(pool.clone(), registry)
+        let mut mux = Multiplexer::new(&pool).await?;
+
+        let mut listener = Listener::new(pool.clone(), registry)
             .with_max_attempts(2)
             .with_retry_duration(duration);
+
+        listener.register(&mut mux).await?;
 
         // Poll for the next event at the time when the retryable event is ready
         listener

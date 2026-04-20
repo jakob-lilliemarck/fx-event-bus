@@ -55,7 +55,7 @@ impl Listener {
             Duration::from_millis(2_500), // FIXME: make configurable
         );
 
-        control.with_mux_stream(stream);
+        control.with_inbound_stream(stream);
 
         while let Some(result) = control.next().await {
             if let Err(err) = result {
@@ -109,9 +109,7 @@ mod tests {
     use chrono::Utc;
     use fx_pgmux::Multiplexer;
     use sqlx::PgTransaction;
-    use std::sync::Arc;
     use std::time::Duration;
-    use tokio::sync::Mutex;
     use uuid::Uuid;
 
     #[sqlx::test(migrations = "./migrations")]

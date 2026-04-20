@@ -5,10 +5,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-type MuxStream = Pin<Box<dyn Stream<Item = String> + Send + 'static>>;
+type Inbound = Pin<Box<dyn Stream<Item = String> + Send + 'static>>;
 
 pub struct PollControlStream {
-    mux_stream: Option<MuxStream>,
+    inbound: Option<Inbound>,
     failed_attempts: u32,
     polled_at: Instant,
     duration: Duration,
@@ -32,7 +32,7 @@ impl PollControlStream {
     )]
     pub fn new(duration: Duration, duration_max: Duration) -> Self {
         Self {
-            mux_stream: None,
+            inbound: None,
             duration,
             duration_max,
             failed_attempts: 0,
@@ -41,12 +41,12 @@ impl PollControlStream {
         }
     }
 
-    #[tracing::instrument(skip(self, mux_stream), level = "debug")]
-    pub fn with_mux_stream(
+    #[tracing::instrument(skip(self, inbound), level = "debug")]
+    pub fn with_inbound_stream(
         &mut self,
-        mux_stream: impl Stream<Item = String> + Unpin + Send + 'static,
+        inbound: impl Stream<Item = String> + Unpin + Send + 'static,
     ) {
-        self.mux_stream = Some(Box::pin(mux_stream))
+        self.inbound = Some(Box::pin(inbound))
     }
 
     /// Increments the failed attempts counter for exponential backoff calculation.
@@ -65,7 +65,7 @@ impl PollControlStream {
         self.failed_attempts = 0;
     }
 
-    /// Forces an immediate poll on the next stream iteration.
+    /// Forces an immediate poll on the next inbound iteration.
     #[tracing::instrument(skip(self), level = "debug")]
     pub fn set_poll(&mut self) {
         self.poll = true
@@ -127,8 +127,8 @@ impl Stream for PollControlStream {
         }
 
         // if there is a mux stream, check for notifications
-        if let Some(ref mut mux_stream) = slf.mux_stream {
-            match mux_stream.as_mut().poll_next(cx) {
+        if let Some(ref mut inbound) = slf.inbound {
+            match inbound.as_mut().poll_next(cx) {
                 Poll::Ready(Some(_message)) => {
                     slf.polled_at = Instant::now();
                     return Poll::Ready(Some(Ok(true)));
