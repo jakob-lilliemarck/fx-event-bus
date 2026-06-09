@@ -8,7 +8,7 @@ use uuid::Uuid;
 /// Created from a database transaction to ensure events are published
 /// atomically with other database operations.
 pub struct Publisher<'tx> {
-    tx: PgTransaction<'tx>,
+    tx: &'tx mut PgTransaction<'static>,
 }
 
 impl<'tx> Publisher<'tx> {
@@ -18,18 +18,16 @@ impl<'tx> Publisher<'tx> {
     ///
     /// * `tx` - Database transaction to publish events within
     #[tracing::instrument(skip(tx), level = "debug")]
-    pub fn new(tx: PgTransaction<'tx>) -> Self {
+    pub fn new(tx: &'tx mut PgTransaction<'static>) -> Self {
         Self { tx }
     }
 }
 
-impl<'tx> Into<PgTransaction<'tx>> for Publisher<'tx> {
-    fn into(self) -> PgTransaction<'tx> {
-        self.tx
-    }
-}
-
 impl<'tx> Publisher<'tx> {
+    pub fn new_tx(tx: &'tx mut PgTransaction<'static>) -> Self {
+        Self { tx }
+    }
+
     /// Publishes multiple events efficiently in a single database operation.
     ///
     /// # Arguments
@@ -97,7 +95,7 @@ impl<'tx> Publisher<'tx> {
 
         query_builder
             .build()
-            .execute(&mut *self.tx)
+            .execute(&mut **self.tx)
             .await
             .map_err(|error| super::PublisherError::DatabaseError {
                 hash: E::HASH,
@@ -166,7 +164,7 @@ impl<'tx> Publisher<'tx> {
             payload,
             now
         )
-        .fetch_one(&mut *self.tx)
+        .fetch_one(&mut **self.tx)
         .await
         .map_err(|error| super::PublisherError::DatabaseError {
             hash: E::HASH,
@@ -188,8 +186,8 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_publishes_single_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let tx = pool.begin().await?;
-        let mut publisher = Publisher::new(tx);
+        let &mut tx = pool.begin().await?;
+        let mut publisher = Publisher::new(&mut tx);
 
         let published = publisher
             .publish(TestEvent {
@@ -212,8 +210,8 @@ mod tests {
     }
     #[sqlx::test(migrations = "./migrations")]
     async fn it_publishes_many_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let tx = pool.begin().await?;
-        let mut publisher = Publisher::new(tx);
+        let mut tx = pool.begin().await?;
+        let mut publisher = Publisher::new(&mut tx);
         let events: Vec<TestEvent> = (0..100)
             .map(|i| TestEvent {
                 message: "testing testing".to_string(),
@@ -232,8 +230,8 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_handles_empty_arrays(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let tx = pool.begin().await?;
-        let mut publisher = Publisher::new(tx);
+        let mut tx = pool.begin().await?;
+        let mut publisher = Publisher::new(&mut tx);
         let events: Vec<TestEvent> = Vec::new();
         publisher.publish_many(&events).await?;
         let tx: PgTransaction<'_> = publisher.into();
