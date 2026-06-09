@@ -64,10 +64,11 @@ mod tests {
     async fn it_returns_acknowledged_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent::default()).await?;
-        let mut tx: sqlx::PgTransaction = publisher.into();
+        let mut tx = pool.begin().await?;
+        let published_event = {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?
+        };
 
         let acked_event = Listener::poll_unacknowledged(&mut tx, Utc::now())
             .await?
@@ -94,14 +95,15 @@ mod tests {
         let events = 3;
         let mut event_ids = Vec::new();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        for _ in 0..events {
-            publisher.publish(TestEvent::default()).await.map(|event| {
-                event_ids.push(event.id);
-            })?;
+        let mut tx = pool.begin().await?;
+        {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            for _ in 0..events {
+                publisher.publish(TestEvent::default()).await.map(|event| {
+                    event_ids.push(event.id);
+                })?;
+            }
         }
-        let mut tx: sqlx::PgTransaction = publisher.into();
 
         // Create a buffer to collect event ids in the order they were acked
         let mut acked_ids = Vec::new();
@@ -129,10 +131,11 @@ mod tests {
     async fn it_skips_locked_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent::default()).await?;
-        let mut tx: sqlx::PgTransaction = publisher.into();
+        let mut tx = pool.begin().await?;
+        let published_event = {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?
+        };
 
         let acked_event = Listener::poll_unacknowledged(&mut tx, Utc::now())
             .await?

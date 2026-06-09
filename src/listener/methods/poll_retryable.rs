@@ -73,11 +73,12 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent::default()).await?;
+        let mut tx = pool.begin().await?;
+        let published_event = {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?
+        };
 
-        let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
             .await?
             .expect("Expected acknowledge to return an event");
@@ -116,19 +117,19 @@ mod tests {
 
         let events = 3;
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-
+        let mut tx = pool.begin().await?;
+        
         // Publish events and collect their ids
         let mut published_event_ids = Vec::with_capacity(events);
-        for _ in 0..events {
-            publisher
-                .publish(TestEvent::default())
-                .await
-                .map(|event| published_event_ids.push(event.id))?;
+        {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            for _ in 0..events {
+                publisher
+                    .publish(TestEvent::default())
+                    .await
+                    .map(|event| published_event_ids.push(event.id))?;
+            }
         }
-
-        let mut tx: sqlx::PgTransaction = publisher.into();
 
         let duration = Duration::from_secs(15);
 
@@ -182,11 +183,11 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent::default()).await?;
-
-        let mut tx: sqlx::PgTransaction = publisher.into();
+        let mut tx = pool.begin().await?;
+        let published_event = {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?
+        };
 
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
             .await?
@@ -235,11 +236,11 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent::default()).await?;
-
-        let mut tx: sqlx::PgTransaction = publisher.into();
+        let mut tx = pool.begin().await?;
+        let published_event = {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?
+        };
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
             .await?
             .expect("Expected acknowledge to return an event");
@@ -281,11 +282,12 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        publisher.publish(TestEvent::default()).await?;
+        let mut tx = pool.begin().await?;
+        {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?;
+        }
 
-        let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
             .await?
             .expect("Expected acknowledge to return an event");

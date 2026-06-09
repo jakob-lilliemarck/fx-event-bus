@@ -186,40 +186,43 @@ mod tests {
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_publishes_single_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let &mut tx = pool.begin().await?;
-        let mut publisher = Publisher::new(&mut tx);
+        let mut tx = pool.begin().await?;
+        {
+            let mut publisher = Publisher::new(&mut tx);
 
-        let published = publisher
-            .publish(TestEvent {
-                message: "testing testing".to_string(),
-                value: 42,
-            })
-            .await?;
+            let published = publisher
+                .publish(TestEvent {
+                    message: "testing testing".to_string(),
+                    value: 42,
+                })
+                .await?;
 
-        assert_eq!(published.hash, TestEvent::HASH);
-        assert_eq!(published.name, TestEvent::NAME);
-        assert_eq!(
-            published.payload,
-            serde_json::json!({
-                "message": "testing testing",
-                "value": 42
-            })
-        );
+            assert_eq!(published.hash, TestEvent::HASH);
+            assert_eq!(published.name, TestEvent::NAME);
+            assert_eq!(
+                published.payload,
+                serde_json::json!({
+                    "message": "testing testing",
+                    "value": 42
+                })
+            );
+        }
 
         Ok(())
     }
     #[sqlx::test(migrations = "./migrations")]
     async fn it_publishes_many_events(pool: sqlx::PgPool) -> anyhow::Result<()> {
         let mut tx = pool.begin().await?;
-        let mut publisher = Publisher::new(&mut tx);
-        let events: Vec<TestEvent> = (0..100)
-            .map(|i| TestEvent {
-                message: "testing testing".to_string(),
-                value: i as i32,
-            })
-            .collect();
-        publisher.publish_many(&events).await?;
-        let tx: PgTransaction<'_> = publisher.into();
+        {
+            let mut publisher = Publisher::new(&mut tx);
+            let events: Vec<TestEvent> = (0..100)
+                .map(|i| TestEvent {
+                    message: "testing testing".to_string(),
+                    value: i as i32,
+                })
+                .collect();
+            publisher.publish_many(&events).await?;
+        }
         tx.commit().await?;
 
         let unacknowledged_events = get_unacknowledged_events(&pool).await?;
@@ -231,10 +234,11 @@ mod tests {
     #[sqlx::test(migrations = "./migrations")]
     async fn it_handles_empty_arrays(pool: sqlx::PgPool) -> anyhow::Result<()> {
         let mut tx = pool.begin().await?;
-        let mut publisher = Publisher::new(&mut tx);
-        let events: Vec<TestEvent> = Vec::new();
-        publisher.publish_many(&events).await?;
-        let tx: PgTransaction<'_> = publisher.into();
+        {
+            let mut publisher = Publisher::new(&mut tx);
+            let events: Vec<TestEvent> = Vec::new();
+            publisher.publish_many(&events).await?;
+        }
         tx.commit().await?;
 
         let unacknowledged_events = get_unacknowledged_events(&pool).await?;

@@ -115,16 +115,17 @@ impl Bencher {
     }
 
     async fn arrange(&self) -> anyhow::Result<()> {
-        let tx = self.pool.begin().await?;
-        let mut publisher = Publisher::new(tx);
-        publisher
-            .publish_many(
-                &(0..1000)
-                    .map(|i| ThroughputBenchmarkEvent { index: i })
-                    .collect::<Vec<ThroughputBenchmarkEvent>>(),
-            )
-            .await?;
-        let tx: PgTransaction<'_> = publisher.into();
+        let mut tx = self.pool.begin().await?;
+        {
+            let mut publisher = Publisher::new(&mut tx);
+            publisher
+                .publish_many(
+                    &(0..1000)
+                        .map(|i| ThroughputBenchmarkEvent { index: i })
+                        .collect::<Vec<ThroughputBenchmarkEvent>>(),
+                )
+                .await?;
+        }
         tx.commit().await?;
         Ok(())
     }

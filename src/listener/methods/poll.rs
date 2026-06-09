@@ -75,7 +75,6 @@ mod tests {
     };
     use crate::test_tools::{TestEvent, init_tracing};
     use fx_pgmux::Multiplexer;
-    use sqlx::PgTransaction;
     use std::time::Duration;
 
     // Also assert it returns true on successful handling
@@ -84,12 +83,13 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        let _event_1 = publisher.publish(TestEvent::default()).await?;
-        let event_2 = publisher.publish(TestEvent::default()).await?;
-
-        let mut tx: sqlx::PgTransaction = publisher.into();
+        let mut tx = pool.begin().await?;
+        let event_2 = {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            let _event_1 = publisher.publish(TestEvent::default()).await?;
+            let event_2 = publisher.publish(TestEvent::default()).await?;
+            event_2
+        };
         // acknowledge the first event
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
             .await?
@@ -128,11 +128,11 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        publisher.publish(TestEvent::default()).await?;
-
-        let mut tx: sqlx::PgTransaction = publisher.into();
+        let mut tx = pool.begin().await?;
+        {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?;
+        }
         // acknowledge the event
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
             .await?
@@ -192,10 +192,11 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent::default()).await?;
-        let tx: PgTransaction<'_> = publisher.into();
+        let mut tx = pool.begin().await?;
+        let published_event = {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?
+        };
         tx.commit().await?;
 
         let duration = Duration::from_secs(15);
@@ -236,10 +237,11 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        let published_event = publisher.publish(TestEvent::default()).await?;
-        let tx: PgTransaction<'_> = publisher.into();
+        let mut tx = pool.begin().await?;
+        let published_event = {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?
+        };
         tx.commit().await?;
 
         let duration = Duration::from_secs(15);

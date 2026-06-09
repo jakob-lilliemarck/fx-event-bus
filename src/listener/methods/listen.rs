@@ -108,18 +108,18 @@ mod tests {
     use crate::{EventHandlerRegistry, Publisher, listener::Listener};
     use chrono::Utc;
     use fx_pgmux::Multiplexer;
-    use sqlx::PgTransaction;
     use std::time::Duration;
     use uuid::Uuid;
 
     #[sqlx::test(migrations = "./migrations")]
     async fn it_handles_an_unacknowledged_event(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
-        let tx = pool.begin().await?;
+        let mut tx = pool.begin().await?;
 
-        let mut publisher = Publisher::new(tx);
-        publisher.publish(TestEvent::default()).await?;
-        let tx: PgTransaction<'_> = publisher.into();
+        {
+            let mut publisher = Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?;
+        }
 
         tx.commit().await?;
 
@@ -144,11 +144,12 @@ mod tests {
     #[sqlx::test(migrations = "./migrations")]
     async fn it_retries_failed_attempts(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
-        let tx = pool.begin().await?;
+        let mut tx = pool.begin().await?;
 
-        let mut publisher = Publisher::new(tx);
-        publisher.publish(TestEvent::default()).await?;
-        let tx: PgTransaction<'_> = publisher.into();
+        {
+            let mut publisher = Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?;
+        }
 
         tx.commit().await?;
 
@@ -176,14 +177,15 @@ mod tests {
     ) -> anyhow::Result<()> {
         init_tracing();
         let now = Utc::now();
-        let tx = pool.begin().await?;
+        let mut tx = pool.begin().await?;
 
         // Publish two events
-        let mut publisher = Publisher::new(tx);
-        let event_1 = publisher.publish(TestEvent::default()).await?;
-        let event_2 = publisher.publish(TestEvent::default()).await?;
-
-        let mut tx: PgTransaction<'_> = publisher.into();
+        let (event_1, event_2) = {
+            let mut publisher = Publisher::new(&mut tx);
+            let event_1 = publisher.publish(TestEvent::default()).await?;
+            let event_2 = publisher.publish(TestEvent::default()).await?;
+            (event_1, event_2)
+        };
 
         // Acknowledge one event
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
@@ -230,11 +232,12 @@ mod tests {
     #[sqlx::test(migrations = "./migrations")]
     async fn it_fails_the_attempt_if_one_handler_fails(pool: sqlx::PgPool) -> anyhow::Result<()> {
         init_tracing();
-        let tx = pool.begin().await?;
+        let mut tx = pool.begin().await?;
 
-        let mut publisher = Publisher::new(tx);
-        publisher.publish(TestEvent::default()).await?;
-        let tx: PgTransaction<'_> = publisher.into();
+        {
+            let mut publisher = Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?;
+        }
 
         tx.commit().await?;
 

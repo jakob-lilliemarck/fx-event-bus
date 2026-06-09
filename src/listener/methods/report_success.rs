@@ -54,9 +54,11 @@ mod tests {
         init_tracing();
         let now = Utc::now();
 
-        let tx = pool.begin().await?;
-        let mut publisher = crate::Publisher::new(tx);
-        publisher.publish(TestEvent::default()).await?;
+        let mut tx = pool.begin().await?;
+        {
+            let mut publisher = crate::Publisher::new(&mut tx);
+            publisher.publish(TestEvent::default()).await?;
+        }
 
         let mut mux = Multiplexer::new(&pool).await?;
 
@@ -65,7 +67,6 @@ mod tests {
 
         listener.register(&mut mux).await?;
 
-        let mut tx: sqlx::PgTransaction = publisher.into();
         let acked_event = Listener::poll_unacknowledged(&mut tx, now)
             .await?
             .expect("Expected an event to be returned");

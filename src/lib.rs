@@ -64,9 +64,10 @@
 //! listener.register(&mut mux).await?;
 //!
 //! // 4. Publish events
-//! let mut publisher = Publisher::new(tx);
-//! publisher.publish(OrderCreated { order_id: 123 }).await?;
-//! let tx: PgTransaction<'_> = publisher.into();
+//! {
+//!     let mut publisher = Publisher::new(&mut tx);
+//!     publisher.publish(OrderCreated { order_id: 123 }).await?;
+//! }
 //! tx.commit().await?;
 //!
 //! // 5. Start processing (in a real app)
