@@ -118,7 +118,7 @@ mod tests {
         let events = 3;
 
         let mut tx = pool.begin().await?;
-        
+
         // Publish events and collect their ids
         let mut published_event_ids = Vec::with_capacity(events);
         {
